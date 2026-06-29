@@ -22,7 +22,7 @@ export default function PlatformMapping({
   return (
     <div className="bg-white border border-border rounded-card p-5 shadow-card-sm text-left space-y-4">
       <div className="flex items-center gap-2 border-b border-border pb-3">
-        <Layers className="w-5 h-5 text-[#F43F5E]" />
+        <Layers className="w-5 h-5 text-primary" />
         <span className="text-[11px] font-black text-secondaryText uppercase tracking-widest leading-none">
           PLATFORM MAPPING
         </span>

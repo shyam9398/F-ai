@@ -56,9 +56,9 @@ export default function ResearchPaperCard({ paper }: ResearchPaperCardProps) {
             unoptimized
           />
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center p-2 bg-gradient-to-br from-rose-50 to-orange-50 text-primary">
+          <div className="w-full h-full flex flex-col items-center justify-center p-2 bg-gradient-to-br from-lightOrange to-orange-100 text-primary">
             <FileText className="w-8 h-8 opacity-80" />
-            <span className="text-[10px] font-bold uppercase tracking-wider mt-2 text-center leading-none text-rose-500">
+            <span className="text-[10px] font-bold uppercase tracking-wider mt-2 text-center leading-none text-textOrangeAccent">
               {paper.category}
             </span>
           </div>

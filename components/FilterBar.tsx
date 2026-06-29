@@ -43,7 +43,7 @@ export default function FilterBar({
                 className={`px-4.5 py-2.5 text-[14px] font-semibold rounded-[14px] transition-all duration-250 cursor-pointer border ${
                   isActive
                     ? "bg-white text-primary border-primary"
-                    : "bg-white text-textDark border-border hover:border-primary hover:bg-[#FFFDFB]"
+                    : "bg-white text-textDark border-border hover:border-primary hover:bg-[#FFF7ED]"
                 }`}
               >
                 {category}

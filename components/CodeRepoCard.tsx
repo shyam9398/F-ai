@@ -29,7 +29,7 @@ export default function CodeRepoCard({ githubUrl, paperTitle }: CodeRepoCardProp
   return (
     <div className="bg-white border border-border rounded-card p-5 shadow-card-sm text-left">
       <div className="flex items-center gap-2 mb-4">
-        <Code className="w-5 h-5 text-[#F43F5E]" />
+        <Code className="w-5 h-5 text-primary" />
         <span className="text-[11px] font-black text-secondaryText uppercase tracking-widest leading-none">
           CODE & REPOSITORY
         </span>

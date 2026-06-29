@@ -80,7 +80,7 @@ export default function PaperDetails({ paper, onClose, onPaperChange, allPapers 
       <div className="flex items-center justify-between border-b border-border pb-4 mb-6 sticky top-[72px] bg-white z-20">
         <button 
           onClick={onClose}
-          className="flex items-center gap-2 text-sm font-semibold text-secondaryText hover:text-[#F43F5E] transition-colors cursor-pointer group"
+          className="flex items-center gap-2 text-sm font-semibold text-secondaryText hover:text-primary transition-colors cursor-pointer group"
         >
           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
           <span>Back to Trending Feed</span>
@@ -116,7 +116,7 @@ export default function PaperDetails({ paper, onClose, onPaperChange, allPapers 
           
           {/* Metadata category and date badge row */}
           <div className="flex flex-wrap items-center gap-3">
-            <span className="px-2.5 py-1 text-xs font-bold bg-rose-50 text-[#F43F5E] border border-rose-100 rounded-md uppercase tracking-wider">
+            <span className="px-2.5 py-1 text-xs font-bold bg-lightOrange text-textOrangeAccent border border-softOrangeBorder rounded-md uppercase tracking-wider">
               {paper.category}
             </span>
             <span className="text-xs font-extrabold text-secondaryText uppercase tracking-widest flex items-center gap-1.5">
@@ -138,7 +138,7 @@ export default function PaperDetails({ paper, onClose, onPaperChange, allPapers 
           {/* Info stats row */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs font-bold text-secondaryText border-b border-border pb-6 w-full">
             <span>• {paper.citations.toLocaleString()} citations</span>
-            <span>• Source: <span className="text-rose-500 font-extrabold">{paper.conference || paper.journal}</span></span>
+            <span>• Source: <span className="text-primary font-extrabold">{paper.conference || paper.journal}</span></span>
             <span className="flex items-center gap-1">
               <span>• ⏱ {paper.reading_time}</span>
             </span>
@@ -150,7 +150,7 @@ export default function PaperDetails({ paper, onClose, onPaperChange, allPapers 
               href={paper.project_url} 
               target="_blank" 
               rel="noopener noreferrer"
-              className="flex items-center gap-2 px-4 py-2.5 bg-[#F43F5E] hover:bg-rose-600 text-white font-bold text-xs uppercase tracking-wider rounded-[10px] shadow-xs transition-colors cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-primaryHover text-white font-bold text-xs uppercase tracking-wider rounded-[10px] shadow-xs transition-colors cursor-pointer"
             >
               <Globe className="w-4 h-4" />
               <span>Source Paper</span>
@@ -195,7 +195,7 @@ export default function PaperDetails({ paper, onClose, onPaperChange, allPapers 
             {isLongAbstract && (
               <button
                 onClick={() => setIsAbstractExpanded(!isAbstractExpanded)}
-                className="text-xs font-extrabold text-[#F43F5E] hover:underline cursor-pointer"
+                className="text-xs font-extrabold text-primary hover:underline cursor-pointer"
               >
                 {isAbstractExpanded ? "Read Less" : "Read Full Abstract"}
               </button>
@@ -228,7 +228,7 @@ export default function PaperDetails({ paper, onClose, onPaperChange, allPapers 
               {paper.methods && paper.methods.map((method) => (
                 <span 
                   key={method} 
-                  className="px-3 py-1 bg-rose-50/30 border border-rose-100 text-rose-600 font-semibold text-xs rounded-lg uppercase tracking-wider"
+                  className="px-3 py-1 bg-lightOrange/30 border border-softOrangeBorder text-textOrangeAccent font-semibold text-xs rounded-lg uppercase tracking-wider"
                 >
                   {method}
                 </span>
@@ -256,7 +256,7 @@ export default function PaperDetails({ paper, onClose, onPaperChange, allPapers 
                     {paper.benchmarks.map((bench, idx) => (
                       <tr key={idx} className="hover:bg-gray-50/50">
                         <td className="px-6 py-3.5">{bench}</td>
-                        <td className="px-6 py-3.5 text-rose-500 font-bold">{paper.results[idx] || "N/A"}</td>
+                        <td className="px-6 py-3.5 text-primary font-bold">{paper.results[idx] || "N/A"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -278,7 +278,7 @@ export default function PaperDetails({ paper, onClose, onPaperChange, allPapers 
                   <span className="text-xs font-bold text-gray-400">BibTeX Format</span>
                   <button
                     onClick={handleCopyBib}
-                    className="flex items-center gap-1 text-xs font-bold text-[#F43F5E] hover:text-rose-600 transition-colors cursor-pointer"
+                    className="flex items-center gap-1 text-xs font-bold text-primary hover:text-primaryHover transition-colors cursor-pointer"
                   >
                     {copiedBib ? (
                       <>
@@ -304,7 +304,7 @@ export default function PaperDetails({ paper, onClose, onPaperChange, allPapers 
                   <span className="text-xs font-bold text-gray-400">APA Format</span>
                   <button
                     onClick={handleCopyAPA}
-                    className="flex items-center gap-1 text-xs font-bold text-[#F43F5E] hover:text-rose-600 transition-colors cursor-pointer"
+                    className="flex items-center gap-1 text-xs font-bold text-primary hover:text-primaryHover transition-colors cursor-pointer"
                   >
                     {copiedAPA ? (
                       <>
@@ -356,7 +356,7 @@ export default function PaperDetails({ paper, onClose, onPaperChange, allPapers 
               <div>Pages: <span className="text-textDark font-bold">{paper.pages} Pages</span></div>
               <div>Size: <span className="text-textDark font-bold">{paper.file_size}</span></div>
               <div>Pub Date: <span className="text-textDark font-bold">{paper.year}</span></div>
-              <div>DOI: <a href={`https://doi.org/${paper.doi}`} target="_blank" rel="noopener noreferrer" className="text-rose-500 font-bold hover:underline break-all">{paper.doi}</a></div>
+              <div>DOI: <a href={`https://doi.org/${paper.doi}`} target="_blank" rel="noopener noreferrer" className="text-primary font-bold hover:underline break-all">{paper.doi}</a></div>
             </div>
           </div>
 
@@ -379,7 +379,7 @@ export default function PaperDetails({ paper, onClose, onPaperChange, allPapers 
       {relatedPapers.length > 0 && (
         <section className="border-t border-border pt-12 text-left mb-8">
           <h2 className="text-2xl font-black text-textDark mb-6 flex items-center gap-2">
-            <BookOpen className="w-6 h-6 text-[#F43F5E]" />
+            <BookOpen className="w-6 h-6 text-primary" />
             <span>Related Research Papers</span>
           </h2>
 
