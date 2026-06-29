@@ -75,7 +75,7 @@ export default function PaperDetails({ paper, onClose, onPaperChange, allPapers 
   };
 
   return (
-    <div className="w-full flex flex-col bg-white select-none">
+    <div className="w-full flex flex-col bg-white border border-border rounded-card p-6 md:p-8 shadow-card-sm select-none">
       {/* 1. Header Navigation Bar */}
       <div className="flex items-center justify-between border-b border-border pb-4 mb-6 sticky top-[72px] bg-white z-20">
         <button 

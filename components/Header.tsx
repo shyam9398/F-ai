@@ -1,13 +1,8 @@
 "use client";
 
-import { Search, ChevronDown, User } from "lucide-react";
+import { ChevronDown, User } from "lucide-react";
 
-interface HeaderProps {
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
-}
-
-export default function Header({ searchQuery, onSearchChange }: HeaderProps) {
+export default function Header() {
   return (
     <header className="sticky top-0 bg-white border-b border-border z-40 select-none">
       <div className="container py-4 flex items-center justify-between">
@@ -19,25 +14,6 @@ export default function Header({ searchQuery, onSearchChange }: HeaderProps) {
           <span className="text-xl font-black text-textDark tracking-tight">
             Frontier Atlas
           </span>
-        </div>
-
-        {/* Middle: Search bar */}
-        <div className="flex-1 max-w-xl mx-8 relative hidden md:block">
-          <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-gray-400">
-            <Search className="w-4 h-4" />
-          </div>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search papers, authors, topics..."
-            className="w-full pl-10 pr-12 py-2 text-sm bg-[#F9FAFB] border border-border rounded-[10px] focus:outline-hidden focus:ring-2 focus:ring-primary/20 focus:border-primary text-textDark font-medium transition-all"
-          />
-          <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none">
-            <kbd className="hidden lg:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-bold text-gray-400 bg-white border border-border rounded-md shadow-xs">
-              <span>⌘</span><span>K</span>
-            </kbd>
-          </div>
         </div>
 
         {/* Right: Submit & Profile */}

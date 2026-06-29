@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import Header from "../components/Header";
 import Breadcrumb from "../components/Breadcrumb";
 import MethodHero from "../components/MethodHero";
 import FilterBar from "../components/FilterBar";
@@ -78,12 +77,9 @@ export default function Home() {
   }, [papers, selectedPaperId]);
 
   return (
-    <div className="min-h-screen flex flex-col bg-white">
-      {/* Top Navigation Header */}
-      <Header searchQuery={searchQuery} onSearchChange={setSearchQuery} />
-
+    <div className="min-h-screen flex flex-col bg-lightGray">
       {/* Main Content Area (Full-Width, Centered Container) */}
-      <main className="flex-grow py-8 bg-white container">
+      <main className="flex-grow py-6 container">
         {selectedPaper ? (
           /* Detailed Paper Document Viewer */
           <PaperDetails
@@ -94,16 +90,14 @@ export default function Home() {
           />
         ) : (
           /* Main Trending Paper Feed list */
-          <div className="space-y-8 max-w-[1280px] mx-auto">
-            <header className="mb-4">
+          <div className="space-y-6 max-w-[1280px] mx-auto">
+            <header>
               <Breadcrumb />
             </header>
 
             <section>
               <MethodHero />
             </section>
-
-            <hr className="border-t border-border" />
 
             <section>
               <FilterBar

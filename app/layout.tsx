@@ -23,7 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           strategy="beforeInteractive"
         />
       </head>
-      <body className="min-h-full flex flex-col bg-white text-textDark">
+      <body className="min-h-full flex flex-col bg-lightGray text-textDark">
         {children}
       </body>
     </html>
