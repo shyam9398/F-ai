@@ -9,7 +9,7 @@ interface PaperStatsProps {
 
 export default function PaperStats({ citations, usage }: PaperStatsProps) {
   const formatNumber = (num: number) => {
-    return num.toLocaleString();
+    return typeof num === "number" ? num.toLocaleString() : "0";
   };
 
   return (
