@@ -1,320 +1,402 @@
 import { NextRequest, NextResponse } from "next/server";
+import { deduplicatePapers } from "@/lib/deduplicate";
 
-// In-memory cache variables for real-time papers
+// In‑memory cache for the combined pool. Cache expires after CACHE_TTL_MS.
 let cachedPapersPool: any[] | null = null;
 let lastCacheUpdateTime = 0;
-const CACHE_TTL_MS = 600000; // 10 minutes cache TTL
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
-// Helper to tag papers with standard method categories via keyword matching
+// Simple LRU cache for GitHub repo stats (5 min TTL)
+const githubCache = new Map<string, { data: any; ts: number }>();
+const GITHUB_TTL = 5 * 60 * 1000;
+
+// In-memory cache for citation counts (30 min TTL)
+const citationCache = new Map<string, { count: number; ts: number }>();
+const CITATION_TTL = 30 * 60 * 1000;
+
+/** Extract GitHub repository URL from a text. */
+function extractGithubUrl(text: string): string | null {
+  if (!text) return null;
+  const match = text.match(/https?:\/\/(?:www\.)?github\.com\/([a-zA-Z0-9._-]+)\/([a-zA-Z0-9._-]+)/i);
+  if (match) {
+    let url = match[0];
+    if (url.endsWith(".") || url.endsWith(",") || url.endsWith(")")) {
+      url = url.slice(0, -1);
+    }
+    return url;
+  }
+  return null;
+}
+
+/** Match local high-quality SVGs based on title. */
+function getMatchingThumbnail(title: string): string | null {
+  const t = title.toLowerCase();
+  if (t.includes("attention") || t.includes("transformer")) return "/thumbnails/attention.svg";
+  if (t.includes("llama")) return "/thumbnails/llama.svg";
+  if (t.includes("gpt-4") || t.includes("gpt 4")) return "/thumbnails/gpt4.svg";
+  if (t.includes("gpt-3") || t.includes("gpt 3")) return "/thumbnails/gpt3.svg";
+  if (t.includes("flan-t5") || t.includes("flant5")) return "/thumbnails/flant5.svg";
+  if (t.includes("t5")) return "/thumbnails/t5.svg";
+  if (t.includes("bert")) return "/thumbnails/bert.svg";
+  if (t.includes("roberta")) return "/thumbnails/roberta.svg";
+  if (t.includes("opt-") || t.includes(" opt ")) return "/thumbnails/opt.svg";
+  if (t.includes("palm")) return "/thumbnails/palm.svg";
+  return null;
+}
+
+/** Fetch citation count from OpenAlex (with Semantic Scholar fallback). */
+async function getRealCitations(arxivId: string, title: string): Promise<number> {
+  const cacheKey = arxivId || title;
+  if (!cacheKey) return 0;
+  const cached = citationCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < CITATION_TTL) {
+    return cached.count;
+  }
+
+  // 1. Try OpenAlex API (Free, no key required, highly reliable)
+  try {
+    let url = "";
+    if (arxivId) {
+      const cleanId = arxivId.split("v")[0];
+      url = `https://api.openalex.org/works/https://arxiv.org/abs/${cleanId}`;
+    } else {
+      url = `https://api.openalex.org/works?filter=title.search:${encodeURIComponent(title)}&limit=1`;
+    }
+
+    const res = await fetch(url, {
+      headers: { "User-Agent": "FrontierPaperExplorer/1.0 (mailto:burla.ankit.dev@gmail.com)" },
+      signal: AbortSignal.timeout(3000),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      let count = 0;
+      if (arxivId) {
+        count = data.cited_by_count ?? 0;
+      } else if (data.results && data.results[0]) {
+        count = data.results[0].cited_by_count ?? 0;
+      }
+      citationCache.set(cacheKey, { count, ts: Date.now() });
+      return count;
+    }
+  } catch (err) {
+    console.error(`OpenAlex citation fetch failed for ${cacheKey}:`, err);
+  }
+
+  // 2. Fallback to Semantic Scholar API
+  try {
+    if (arxivId) {
+      const cleanId = arxivId.split("v")[0];
+      const ssUrl = `https://api.semanticscholar.org/graph/v1/paper/arXiv:${cleanId}?fields=citationCount`;
+      const res = await fetch(ssUrl, { signal: AbortSignal.timeout(3000) });
+      if (res.ok) {
+        const data = await res.json();
+        const count = data.citationCount ?? 0;
+        citationCache.set(cacheKey, { count, ts: Date.now() });
+        return count;
+      }
+    }
+  } catch (err) {
+    console.error(`Semantic Scholar citation fetch failed for ${cacheKey}:`, err);
+  }
+
+  return 0;
+}
+
+/** Fetch GitHub repository statistics (stars, forks, issues). */
+async function fetchGitHubStats(url: string) {
+  if (!url) return { stars: 0, forks: 0, issues: 0 };
+  const cached = githubCache.get(url);
+  const now = Date.now();
+  if (cached && now - cached.ts < GITHUB_TTL) return cached.data;
+
+  try {
+    const match = url.match(/github\.com\/([^/]+)\/([^/]+)/i);
+    if (!match) return { stars: 0, forks: 0, issues: 0 };
+    const [, owner, repo] = match;
+    const cleanRepo = repo.replace(/\.git$/, "");
+    const apiUrl = `https://api.github.com/repos/${owner}/${cleanRepo}`;
+    const res = await fetch(apiUrl, {
+      headers: {
+        Authorization: process.env.GITHUB_TOKEN ? `token ${process.env.GITHUB_TOKEN}` : undefined,
+        "User-Agent": "FrontierPaperExplorer/1.0",
+      },
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!res.ok) throw new Error(`GitHub fetch failed ${res.status}`);
+    const data = await res.json();
+    const result = {
+      stars: data.stargazers_count ?? 0,
+      forks: data.forks_count ?? 0,
+      issues: data.open_issues_count ?? 0,
+    };
+    githubCache.set(url, { data: result, ts: now });
+    return result;
+  } catch (e) {
+    console.error("GitHub stats error", e);
+    return { stars: 0, forks: 0, issues: 0 };
+  }
+}
+
+/** Helper to tag papers with method categories based on keywords. */
 function tagPaperMethods(paper: any): any {
-  const text = `${paper.title} ${paper.abstract}`.toLowerCase();
+  const text = `${paper.title || ""} ${paper.abstract || ""}`.toLowerCase();
   const methods = new Set<string>();
   const tags = new Set<string>(paper.tags || []);
 
-  if (text.includes("attention") || text.includes("transformer") || text.includes("query") || text.includes("self-attention")) {
-    methods.add("Attention");
-  }
-  if (text.includes("architecture") || text.includes("network") || text.includes("mlp") || text.includes("cnn") || text.includes("rnn")) {
-    methods.add("Architecture");
-  }
-  if (text.includes("optimize") || text.includes("optimization") || text.includes("adam") || text.includes("sgd") || text.includes("gradient")) {
-    methods.add("Optimization");
-  }
-  if (text.includes("train") || text.includes("pretrain") || text.includes("finetun") || text.includes("supervis")) {
-    methods.add("Training");
-  }
-  if (text.includes("embedding") || text.includes("vector") || text.includes("representation")) {
-    methods.add("Embedding");
-  }
-  if (text.includes("regulariz") || text.includes("dropout") || text.includes("weight decay")) {
-    methods.add("Regularization");
-  }
-  if (text.includes("diffusion") || text.includes("denois") || text.includes("stable diffusion") || text.includes("gan")) {
-    methods.add("Diffusion");
-  }
-  if (text.includes("vision") || text.includes("image") || text.includes("segment") || text.includes("object detect") || text.includes("pixel")) {
-    methods.add("Vision");
-  }
-  if (text.includes("llm") || text.includes("large language model") || text.includes("gpt") || text.includes("llama") || text.includes("prompt")) {
-    methods.add("LLM");
-  }
-  if (text.includes("agent") || text.includes("autonomous") || text.includes("multi-agent")) {
-    methods.add("Agents");
-  }
-  if (text.includes("reasoning") || text.includes("cot") || text.includes("chain of thought") || text.includes("logic")) {
-    methods.add("Reasoning");
-  }
-  if (text.includes("robot") || text.includes("manipulation") || text.includes("control") || text.includes("locomotion")) {
-    methods.add("Robotics");
-  }
-  if (text.includes("reinforcement") || text.includes("rl") || text.includes("ppo") || text.includes("q-learning") || text.includes("reward")) {
-    methods.add("Reinforcement Learning");
-  }
-  if (text.includes("audio") || text.includes("speech") || text.includes("voice") || text.includes("sound")) {
-    methods.add("Audio");
-  }
-  if (text.includes("video") || text.includes("temporal") || text.includes("frame")) {
-    methods.add("Video");
-  }
-  if (text.includes("multimodal") || text.includes("vision-language") || text.includes("vlm") || text.includes("text-to-image")) {
-    methods.add("Multimodal");
+  const map: Record<string, string> = {
+    attention: "Attention",
+    transformer: "Attention",
+    query: "Attention",
+    "self-attention": "Attention",
+    architecture: "Architecture",
+    network: "Architecture",
+    mlp: "Architecture",
+    cnn: "Architecture",
+    rnn: "Architecture",
+    optimize: "Optimization",
+    optimization: "Optimization",
+    adam: "Optimization",
+    sgd: "Optimization",
+    gradient: "Optimization",
+    train: "Training",
+    pretrain: "Training",
+    finetun: "Training",
+    supervis: "Training",
+    embedding: "Embedding",
+    vector: "Embedding",
+    representation: "Embedding",
+    regulariz: "Regularization",
+    dropout: "Regularization",
+    "weight decay": "Regularization",
+    diffusion: "Diffusion",
+    denois: "Diffusion",
+    "stable diffusion": "Diffusion",
+    gan: "Diffusion",
+    vision: "Vision",
+    image: "Vision",
+    segment: "Vision",
+    "object detect": "Vision",
+    pixel: "Vision",
+    llm: "LLM",
+    "large language model": "LLM",
+    gpt: "LLM",
+    llama: "LLM",
+    prompt: "LLM",
+    agent: "Agents",
+    autonomous: "Agents",
+    "multi-agent": "Agents",
+    reasoning: "Reasoning",
+    cot: "Reasoning",
+    "chain of thought": "Reasoning",
+    logic: "Reasoning",
+    robot: "Robotics",
+    manipulation: "Robotics",
+    control: "Robotics",
+    locomotion: "Robotics",
+    reinforcement: "Reinforcement Learning",
+    rl: "Reinforcement Learning",
+    ppo: "Reinforcement Learning",
+    "q-learning": "Reinforcement Learning",
+    reward: "Reinforcement Learning",
+    audio: "Audio",
+    speech: "Audio",
+    voice: "Audio",
+    sound: "Audio",
+    video: "Video",
+    temporal: "Video",
+    frame: "Video",
+    multimodal: "Multimodal",
+    "vision-language": "Multimodal",
+    vlm: "Multimodal",
+    "text-to-image": "Multimodal",
+  };
+
+  for (const [kw, method] of Object.entries(map)) {
+    if (text.includes(kw)) methods.add(method);
   }
 
-  // Fallback to "Architecture" if no keywords match
-  if (methods.size === 0) {
-    methods.add("Architecture");
-  }
-
-  const list = Array.from(methods);
-  const category = list[0] || "Architecture";
+  if (methods.size === 0) methods.add("Architecture");
+  const methodList = Array.from(methods);
+  const category = methodList[0];
 
   return {
     ...paper,
     category,
-    methods: list,
-    tags: Array.from(new Set([...list, ...Array.from(tags)])).slice(0, 4)
+    methods: methodList,
+    tags: Array.from(new Set([...methodList, ...Array.from(tags)])).slice(0, 4),
   };
 }
 
-// Regex-based arXiv XML parser (robust and node-safe)
+/** Parse arXiv XML. */
 function parseArxivXml(xml: string): any[] {
   const entries: any[] = [];
   const entryRegex = /<entry>([\s\S]*?)<\/entry>/g;
   let match;
   while ((match = entryRegex.exec(xml)) !== null) {
     const content = match[1];
-    
     const titleMatch = /<title>([\s\S]*?)<\/title>/.exec(content);
-    const title = titleMatch ? titleMatch[1].trim().replace(/\n\s*/g, ' ') : "";
-    
-    const idMatch = /<id>http:\/\/arxiv\.org\/abs\/(.+?)<\/id>/.exec(content);
+    const title = titleMatch ? titleMatch[1].trim().replace(/\n\s*/g, " ") : "";
+    const idMatch = /<id>http:\/\/arxiv\.org\/abs\/([^<]+)<\/id>/.exec(content);
     const arxivId = idMatch ? idMatch[1].trim() : "";
-    
     const summaryMatch = /<summary>([\s\S]*?)<\/summary>/.exec(content);
-    const summary = summaryMatch ? summaryMatch[1].trim().replace(/\n\s*/g, ' ') : "";
-    
-    const publishedMatch = /<published>(.+?)<\/published>/.exec(content);
+    const abstract = summaryMatch ? summaryMatch[1].trim().replace(/\n\s*/g, " ") : "";
+    const publishedMatch = /<published>([^<]+)<\/published>/.exec(content);
     const published = publishedMatch ? publishedMatch[1].trim() : "";
-    
     const authorRegex = /<author>\s*<name>([\s\S]*?)<\/name>\s*<\/author>/g;
     const authors: string[] = [];
     let authorMatch;
     while ((authorMatch = authorRegex.exec(content)) !== null) {
       authors.push(authorMatch[1].trim());
     }
+    const pdfUrl = arxivId ? `https://arxiv.org/pdf/${arxivId}.pdf` : "";
+    const year = published ? new Date(published).getFullYear() : null;
     
-    const pdfUrl = `https://arxiv.org/pdf/${arxivId}.pdf`;
-    const paperUrl = `https://arxiv.org/abs/${arxivId}`;
-    const year = published ? new Date(published).getFullYear() : 2026;
+    // Extract real GitHub URL from abstract if present
+    const githubUrl = extractGithubUrl(abstract);
 
-    // Simulate citations and github stars for realistic dynamic loading
-    const rawHash = title.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const citations = (rawHash % 120) + 15;
-    const githubStars = rawHash % 3 === 0 ? (rawHash % 800) + 200 : 0;
+    // Dynamic local SVG thumbnail based on title
+    const thumbnail = getMatchingThumbnail(title);
 
     entries.push({
-      id: `arxiv_${arxivId.replace(/\//g, '_')}`,
+      id: `arxiv_${arxivId.replace(/\//g, "_")}`,
       arxiv_id: arxivId,
       source: "arXiv",
       title,
       authors: authors.join(", "),
-      abstract: summary,
-      publication_date: published ? new Date(published).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : "",
+      abstract,
+      publication_date: published ? new Date(published).toISOString() : null,
       year,
       categories: ["AI", "Machine Learning"],
       methods: [],
       tasks: [],
       keywords: [],
-      thumbnail: "",
+      thumbnail,
       pdf_url: pdfUrl,
-      paper_url: paperUrl,
-      github_url: githubStars > 0 ? `https://github.com/arxiv-projects/${arxivId.replace(/[^a-zA-Z0-9]/g, "")}` : "",
-      project_url: paperUrl,
-      citations,
-      github_stars: githubStars,
-      stars_per_hour: githubStars > 0 ? Math.round(githubStars / 12) : 0,
+      paper_url: arxivId ? `https://arxiv.org/abs/${arxivId}` : null,
+      github_url: githubUrl,
+      project_url: arxivId ? `https://arxiv.org/abs/${arxivId}` : null,
+      citations: 0,
+      github_stars: 0,
+      stars_per_hour: 0,
       benchmarks: [],
-      sota: "",
-      tags: ["arXiv"]
+      sota: null,
+      tags: ["arXiv"],
     });
   }
   return entries;
 }
 
-// Hugging Face JSON parser
+/** Parse Hugging Face daily papers. */
 function parseHfPapers(data: any[]): any[] {
   return (data || []).map((p) => {
     const arxivId = p.id || "";
+    const title = p.title || p.paper?.title || "";
     const authors = (p.paper?.authors || []).map((a: any) => a.name).join(", ");
-    const summary = p.paper?.summary || "";
+    const abstract = p.paper?.summary || "";
     const published = p.publishedAt || "";
-    const year = published ? new Date(published).getFullYear() : 2026;
-    
-    const rawHash = (p.title || "").split("").reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
-    const citations = p.upvotes || (rawHash % 250) + 10;
-    const githubStars = (citations * 4) + (rawHash % 50);
+    const year = published ? new Date(published).getFullYear() : null;
+
+    // Use real github url provided by HF or extract from abstract
+    const githubUrl = p.paper?.githubUrl || extractGithubUrl(abstract) || null;
+
+    // Dynamic local SVG thumbnail based on title
+    const thumbnail = getMatchingThumbnail(title);
 
     return {
-      id: `hf_${arxivId.replace(/\//g, '_')}`,
+      id: `hf_${arxivId.replace(/\//g, "_")}`,
       arxiv_id: arxivId,
       source: "Hugging Face",
-      title: p.title || "",
+      title,
       authors,
-      abstract: summary,
-      publication_date: published ? new Date(published).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : "",
+      abstract,
+      publication_date: published ? new Date(published).toISOString() : null,
       year,
       categories: ["AI", "Trending"],
       methods: [],
       tasks: [],
       keywords: [],
-      thumbnail: arxivId ? `/thumbnails/${arxivId.split("v")[0].replace(/[^a-zA-Z0-9]/g, "")}.svg` : "",
-      pdf_url: arxivId ? `https://arxiv.org/pdf/${arxivId}.pdf` : "",
-      paper_url: arxivId ? `https://huggingface.co/papers/${arxivId}` : "",
-      github_url: arxivId ? `https://github.com/huggingface-projects/${arxivId.replace(/[^a-zA-Z0-9]/g, "")}` : "",
-      project_url: arxivId ? `https://arxiv.org/abs/${arxivId}` : "",
-      citations,
-      github_stars: githubStars,
-      stars_per_hour: Math.round(githubStars / 24),
+      thumbnail,
+      pdf_url: arxivId ? `https://arxiv.org/pdf/${arxivId}.pdf` : null,
+      paper_url: arxivId ? `https://huggingface.co/papers/${arxivId}` : null,
+      github_url: githubUrl,
+      project_url: arxivId ? `https://arxiv.org/abs/${arxivId}` : null,
+      citations: 0,
+      github_stars: 0,
+      stars_per_hour: 0,
       benchmarks: [],
-      sota: "",
-      tags: ["Hugging Face", "Daily Papers"]
+      sota: null,
+      tags: ["Hugging Face", "Daily Papers"],
     };
   });
-}
-
-// Deduplicate papers by arXiv ID, Title similarity, or PDF URL
-function deduplicatePapers(papers: any[]): any[] {
-  const seenIds = new Set<string>();
-  const seenTitles = new Set<string>();
-  const seenPdfUrls = new Set<string>();
-  const result: any[] = [];
-
-  for (const paper of papers) {
-    const arxivId = paper.arxiv_id?.toLowerCase() || "";
-    const titleNorm = (paper.title || "").toLowerCase().trim().replace(/[^a-z0-9]/g, "");
-    const pdfUrl = paper.pdf_url?.toLowerCase() || "";
-
-    if (arxivId && seenIds.has(arxivId)) continue;
-    if (titleNorm && seenTitles.has(titleNorm)) continue;
-    if (pdfUrl && seenPdfUrls.has(pdfUrl)) continue;
-
-    if (arxivId) seenIds.add(arxivId);
-    if (titleNorm) seenTitles.add(titleNorm);
-    if (pdfUrl) seenPdfUrls.add(pdfUrl);
-
-    result.push(paper);
-  }
-  return result;
 }
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-
-    // Build the in-memory pool if empty or expired
-    if (!cachedPapersPool || Date.now() - lastCacheUpdateTime > CACHE_TTL_MS) {
-      const pool: any[] = [];
-
-      // 1. Fetch from arXiv API
-      try {
-        const arxivUrl = 'http://export.arxiv.org/api/query?search_query=all:transformer+OR+all:attention+OR+all:diffusion+OR+all:language+OR+all:agent+OR+all:reasoning&start=0&max_results=80&sortBy=submittedDate&sortOrder=descending';
-        const res = await fetch(arxivUrl, { signal: AbortSignal.timeout(5000) });
-        if (res.ok) {
-          const text = await res.text();
-          const parsed = parseArxivXml(text);
-          pool.push(...parsed);
-        }
-      } catch (err) {
-        console.error("arXiv API fetch failed, proceeding with other sources:", err);
-      }
-
-      // 2. Fetch from Hugging Face Daily Papers API
-      try {
-        const hfUrl = 'https://huggingface.co/api/daily_papers';
-        const res = await fetch(hfUrl, { signal: AbortSignal.timeout(5000) });
-        if (res.ok) {
-          const data = await res.json();
-          const parsed = parseHfPapers(data);
-          pool.push(...parsed);
-        }
-      } catch (err) {
-        console.error("Hugging Face API fetch failed, proceeding with other sources:", err);
-      }
-
-      // 3. Papers with Code API (Fallback wrapper / gracefully ignored if redirects/fails)
-      try {
-        const pwcUrl = 'https://paperswithcode.com/api/v1/papers/?items_per_page=10';
-        const res = await fetch(pwcUrl, { signal: AbortSignal.timeout(3000), headers: { 'Accept': 'application/json' } });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.results) {
-            const parsed = data.results.map((p: any) => ({
-              id: `pwc_${(p.id || "").replace(/\//g, '_')}`,
-              arxiv_id: p.arxiv_id || "",
-              source: "Papers with Code",
-              title: p.title || "",
-              authors: (p.authors || []).join(", "),
-              abstract: p.abstract || "",
-              publication_date: p.published || "",
-              year: p.published ? new Date(p.published).getFullYear() : 2026,
-              categories: ["AI"],
-              methods: p.methods || [],
-              tasks: p.tasks || [],
-              keywords: [],
-              thumbnail: "",
-              pdf_url: p.url_pdf || "",
-              paper_url: p.paper_url || "",
-              github_url: "",
-              project_url: p.paper_url || "",
-              citations: 0,
-              github_stars: 0,
-              stars_per_hour: 0,
-              benchmarks: [],
-              sota: "",
-              tags: ["Papers with Code"]
-            }));
-            pool.push(...parsed);
-          }
-        }
-      } catch (err) {
-        // Log PWC failure but ignore as expected due to domain redirect limits
-        console.log("Papers with Code API failed (redirected/ignored):", err);
-      }
-
-      // Tag all combined papers with methods keywords
-      const tagged = pool.map(tagPaperMethods);
-
-      // Deduplicate the final combined array
-      const deduped = deduplicatePapers(tagged);
-
-      // If we got papers, update cache
-      if (deduped.length > 0) {
-        cachedPapersPool = deduped;
-        lastCacheUpdateTime = Date.now();
-      }
-    }
-
-    // Fallback if APIs are entirely unavailable and cache is empty
-    let papersList = cachedPapersPool || [];
-
     const methodParam = searchParams.get("method");
     const sortParam = searchParams.get("sort");
     const searchParam = searchParams.get("search");
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "50");
+    const refresh = searchParams.get("refresh") === "1";
 
-    // 1. Filtering by method
+    // Refresh cache if requested or TTL expired
+    if (refresh || !cachedPapersPool || Date.now() - lastCacheUpdateTime > CACHE_TTL_MS) {
+      const pool: any[] = [];
+
+      // 1. Fetch from arXiv
+      try {
+        const start = (page - 1) * limit;
+        const arxivUrl = `http://export.arxiv.org/api/query?search_query=cat:cs.AI+OR+cat:cs.LG+OR+cat:cs.CV+OR+cat:cs.CL+OR+cat:cs.RO&start=${start}&max_results=${limit}&sortBy=submittedDate&sortOrder=descending`;
+        const res = await fetch(arxivUrl, { signal: AbortSignal.timeout(5000) });
+        if (res.ok) {
+          const txt = await res.text();
+          pool.push(...parseArxivXml(txt));
+        } else {
+          console.error("arXiv API returned non-OK status:", res.status);
+        }
+      } catch (e) {
+        console.error("arXiv fetch error:", e);
+      }
+
+      // 2. Fetch from Hugging Face
+      try {
+        const hfUrl = `https://huggingface.co/api/daily_papers?page=${page}`;
+        const res = await fetch(hfUrl, { signal: AbortSignal.timeout(5000) });
+        if (res.ok) {
+          const data = await res.json();
+          pool.push(...parseHfPapers(data));
+        } else {
+          console.error("Hugging Face API returned non-OK status:", res.status);
+        }
+      } catch (e) {
+        console.error("HF fetch error:", e);
+      }
+
+      const tagged = pool.map(tagPaperMethods);
+      const deduped = deduplicatePapers(tagged);
+      cachedPapersPool = deduped;
+      lastCacheUpdateTime = Date.now();
+    }
+
+    // Work on cached pool (already deduped & tagged)
+    let papersList = cachedPapersPool || [];
+
+    // ---- FILTERING ----
     if (methodParam) {
-      const targetMethod = methodParam.toLowerCase();
+      const target = methodParam.toLowerCase();
       papersList = papersList.filter((p: any) => {
         return (
-          (p.category || "").toLowerCase() === targetMethod ||
-          (p.tags || []).some((t: string) => t.toLowerCase() === targetMethod) ||
-          (p.methods || []).some((m: string) => m.toLowerCase() === targetMethod) ||
-          (p.keywords || []).some((k: string) => k.toLowerCase() === targetMethod)
+          (p.category || "").toLowerCase() === target ||
+          (p.tags || []).some((t: string) => t.toLowerCase() === target) ||
+          (p.methods || []).some((m: string) => m.toLowerCase() === target) ||
+          (p.keywords || []).some((k: string) => k.toLowerCase() === target)
         );
       });
     }
 
-    // 2. Filtering by search query
+    // ---- SEARCH ----
     if (searchParam) {
       const q = searchParam.toLowerCase();
       papersList = papersList.filter((p: any) => {
@@ -328,32 +410,63 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // 3. Sorting (Popular, Newest / Latest / Citations / GitHub Stars)
+    // ---- SORTING ----
     if (sortParam) {
-      const targetSort = sortParam.toLowerCase();
-      if (targetSort === "popular" || targetSort === "citations" || targetSort === "most cited") {
-        papersList = [...papersList].sort((a: any, b: any) => (b.citations || 0) - (a.citations || 0));
-      } else if (targetSort === "newest" || targetSort === "latest") {
-        papersList = [...papersList].sort((a: any, b: any) => (b.year || 0) - (a.year || 0));
-      } else if (targetSort === "github stars" || targetSort === "github_stars") {
-        papersList = [...papersList].sort((a: any, b: any) => (b.github_stars || 0) - (a.github_stars || 0));
+      const s = sortParam.toLowerCase();
+      if (s === "popular" || s === "citations" || s === "most cited") {
+        // We'll sort after fetching citation counts, but do a rough sort here as well
+        papersList = [...papersList].sort((a, b) => (b.citations ?? 0) - (a.citations ?? 0));
+      } else if (s === "newest" || s === "latest") {
+        papersList = [...papersList].sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+      } else if (s === "github stars" || s === "github_stars") {
+        papersList = [...papersList].sort((a, b) => (b.github_stars ?? 0) - (a.github_stars ?? 0));
       }
     }
 
-    // 4. Pagination
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "20");
+    // ---- PAGINATION ----
+    const totalCount = papersList.length;
     const startIdx = (page - 1) * limit;
-
     const result = papersList.slice(startIdx, startIdx + limit);
+
+    // ---- ENRICH with real citations & GitHub stats (blocking but parallelized for the current page only) ----
+    await Promise.all(
+      result.map(async (p: any) => {
+        // 1. Get real citation count
+        p.citations = await getRealCitations(p.arxiv_id, p.title);
+
+        // 2. Get real GitHub stats if github_url exists
+        if (p.github_url) {
+          const stats = await fetchGitHubStats(p.github_url);
+          p.github_stars = stats.stars ?? 0;
+          p.github_forks = stats.forks ?? 0;
+          p.github_issues = stats.issues ?? 0;
+        } else {
+          p.github_stars = 0;
+          p.github_forks = 0;
+          p.github_issues = 0;
+        }
+      })
+    );
+
+    // If sorting by popularity or stars, re-sort the enriched page results to ensure correct order
+    if (sortParam) {
+      const s = sortParam.toLowerCase();
+      if (s === "popular" || s === "citations" || s === "most cited") {
+        result.sort((a, b) => (b.citations ?? 0) - (a.citations ?? 0));
+      } else if (s === "github stars" || s === "github_stars") {
+        result.sort((a, b) => (b.github_stars ?? 0) - (a.github_stars ?? 0));
+      }
+    }
 
     return NextResponse.json(result, {
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
-      }
+        "X-Total-Count": totalCount.toString(),
+      },
     });
   } catch (error: any) {
+    console.error("GET /api/papers error", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

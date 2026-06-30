@@ -52,11 +52,12 @@ export default function PaperDetails({ paper, onClose, onPaperChange, allPapers 
   const getBibtexCitation = () => {
     const cleanKey = paper.title.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 12);
     const authorList = paper.authors.replace(/,/g, " and");
+    const doiVolume = paper.doi ? `abs/${paper.doi.split("/").pop() || "arxiv"}` : "abs/arxiv";
     return `@article{${cleanKey}${paper.year},
   author    = {${authorList}},
   title     = {${paper.title}},
   journal   = {${paper.journal || "arXiv preprint"}},
-  volume    = {abs/${paper.doi.split("/").pop() || "arxiv"}},
+  volume    = {${doiVolume}},
   year      = {${paper.year}},
   url       = {${paper.project_url || ""}}
 }`;
