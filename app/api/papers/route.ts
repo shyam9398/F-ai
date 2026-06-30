@@ -116,11 +116,15 @@ async function fetchGitHubStats(url: string) {
     const [, owner, repo] = match;
     const cleanRepo = repo.replace(/\.git$/, "");
     const apiUrl = `https://api.github.com/repos/${owner}/${cleanRepo}`;
+    const headers: Record<string, string> = {
+      "User-Agent": "FrontierPaperExplorer/1.0",
+    };
+    if (process.env.GITHUB_TOKEN) {
+      headers["Authorization"] = `token ${process.env.GITHUB_TOKEN}`;
+    }
+
     const res = await fetch(apiUrl, {
-      headers: {
-        Authorization: process.env.GITHUB_TOKEN ? `token ${process.env.GITHUB_TOKEN}` : undefined,
-        "User-Agent": "FrontierPaperExplorer/1.0",
-      },
+      headers,
       signal: AbortSignal.timeout(3000),
     });
     if (!res.ok) throw new Error(`GitHub fetch failed ${res.status}`);

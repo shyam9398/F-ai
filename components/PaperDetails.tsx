@@ -16,7 +16,7 @@ import { usePDFThumbnail } from "../hooks/usePDFThumbnail";
 interface PaperDetailsProps {
   paper: Paper;
   onClose: () => void;
-  onPaperChange: (id: number) => void;
+  onPaperChange: (id: string) => void;
   allPapers: Paper[];
 }
 
@@ -209,7 +209,7 @@ export default function PaperDetails({ paper, onClose, onPaperChange, allPapers 
               TASKS MAPPED
             </h3>
             <div className="flex flex-wrap gap-2">
-              {paper.tasks.map((task) => (
+              {paper.tasks.map((task: string) => (
                 <span 
                   key={task} 
                   className="px-3 py-1 bg-[#F9FAFB] border border-border text-textDark font-semibold text-xs rounded-lg uppercase tracking-wider"
@@ -226,7 +226,7 @@ export default function PaperDetails({ paper, onClose, onPaperChange, allPapers 
               METHODS USED
             </h3>
             <div className="flex flex-wrap gap-2">
-              {paper.methods && paper.methods.map((method) => (
+              {paper.methods && paper.methods.map((method: string) => (
                 <span 
                   key={method} 
                   className="px-3 py-1 bg-lightOrange/30 border border-softOrangeBorder text-textOrangeAccent font-semibold text-xs rounded-lg uppercase tracking-wider"
@@ -254,7 +254,7 @@ export default function PaperDetails({ paper, onClose, onPaperChange, allPapers 
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border text-textDark font-semibold">
-                    {paper.benchmarks.map((bench, idx) => (
+                    {paper.benchmarks.map((bench: string, idx: number) => (
                       <tr key={idx} className="hover:bg-gray-50/50">
                         <td className="px-6 py-3.5">{bench}</td>
                         <td className="px-6 py-3.5 text-primary font-bold">{paper.results[idx] || "N/A"}</td>
@@ -335,7 +335,7 @@ export default function PaperDetails({ paper, onClose, onPaperChange, allPapers 
             <span className="block text-left text-[10px] font-black text-secondaryText uppercase tracking-widest px-1">
               EMBEDDED DOCUMENT VIEWER
             </span>
-            <PDFViewer pdfUrl={paper.pdf_url} />
+            <PDFViewer pdfUrl={paper.pdf_url || ""} />
           </div>
 
           {/* Paper Stats Sidebar card with object-contain thumbnail (no crop, no stretch) */}
@@ -362,7 +362,7 @@ export default function PaperDetails({ paper, onClose, onPaperChange, allPapers 
           </div>
 
           {/* Code Repository Card */}
-          <CodeRepoCard githubUrl={paper.github_url} paperTitle={paper.title} />
+          <CodeRepoCard githubUrl={paper.github_url || ""} paperTitle={paper.title} />
 
           {/* Platform Mapping Card */}
           <PlatformMapping

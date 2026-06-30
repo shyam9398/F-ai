@@ -192,7 +192,7 @@ export function PaperCard({ paper }: { paper: Paper }) {
 
         {/* Tasks (Row 2) */}
         <div className="flex flex-nowrap items-center gap-2 mb-2 w-full overflow-hidden">
-          {paper.tags?.map((t, idx) => {
+          {paper.tags?.map((t: string, idx: number) => {
             const colorKey = getTagColor(t);
             return <Pill key={`${t}-${idx}`} label={t} colorKey={colorKey} />;
           })}
@@ -200,7 +200,7 @@ export function PaperCard({ paper }: { paper: Paper }) {
 
         {/* Methods (Row 3) */}
         <div className="flex flex-nowrap items-center gap-2 w-full overflow-hidden">
-          {paper.additionalTags?.map((t, idx) => {
+          {paper.additionalTags?.map((t: string, idx: number) => {
             const colorKey = getTagColor(t);
             return <Pill key={`${t}-${idx}`} label={t} colorKey={colorKey} />;
           })}
@@ -230,7 +230,7 @@ export function PaperCard({ paper }: { paper: Paper }) {
 /* ─── List ───────────────────────────────────────────────────────────────── */
 interface PaperListProps {
   papers: Paper[];
-  onPaperClick?: (id: number) => void;
+  onPaperClick?: (id: string) => void;
 }
 
 export default function PaperList({ papers, onPaperClick }: PaperListProps) {

@@ -14,7 +14,7 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All Methods");
   const [currentSort, setCurrentSort] = useState("Popular");
-  const [selectedPaperId, setSelectedPaperId] = useState<number | null>(null);
+  const [selectedPaperId, setSelectedPaperId] = useState<string | null>(null);
 
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -25,7 +25,7 @@ export default function Home() {
   const allFetchedPapersRef = useRef<Paper[]>([]);
 
   // Unique identifier Sets to guarantee no duplicate renders
-  const seenIdsRef = useRef<Set<number>>(new Set());
+  const seenIdsRef = useRef<Set<string>>(new Set());
   const seenDoisRef = useRef<Set<string>>(new Set());
   const seenTitlesRef = useRef<Set<string>>(new Set());
 
