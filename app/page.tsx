@@ -16,12 +16,22 @@ export default function Home() {
   const [currentSort, setCurrentSort] = useState("Popular");
   const [selectedPaperId, setSelectedPaperId] = useState<number | null>(null);
 
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+
   // Load papers dynamically from API route whenever activeCategory changes
   useEffect(() => {
-    async function fetchPapers() {
+    async function loadInitialPapers() {
       try {
         setLoading(true);
-        const data = await getPapers(activeCategory === "All Methods" ? undefined : activeCategory);
+        setPage(1);
+        setHasMore(true);
+        const data = await getPapers(
+          activeCategory === "All Methods" ? undefined : activeCategory,
+          1,
+          10
+        );
         setPapers(data);
       } catch (err) {
         console.error("Failed to fetch papers:", err);
@@ -29,8 +39,55 @@ export default function Home() {
         setLoading(false);
       }
     }
-    fetchPapers();
+    loadInitialPapers();
   }, [activeCategory]);
+
+  const loadNextPage = async () => {
+    if (loading || loadingMore || !hasMore) return;
+    try {
+      setLoadingMore(true);
+      const nextPage = page + 1;
+      const data = await getPapers(
+        activeCategory === "All Methods" ? undefined : activeCategory,
+        nextPage,
+        10
+      );
+      if (data.length === 0) {
+        setHasMore(false);
+      } else {
+        setPapers((prev) => {
+          const existingIds = new Set(prev.map((p) => p.id));
+          const uniqueNew = data.filter((p) => !existingIds.has(p.id));
+          if (uniqueNew.length === 0) {
+            setHasMore(false);
+          }
+          return [...prev, ...uniqueNew];
+        });
+        setPage(nextPage);
+      }
+    } catch (err) {
+      console.error("Failed to load more papers:", err);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (typeof window === "undefined") return;
+      const scrollHeight = document.documentElement.scrollHeight;
+      const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+      const clientHeight = window.innerHeight;
+      
+      // Trigger load when scrolled 85% of the way down
+      if (scrollTop + clientHeight >= scrollHeight - 250) {
+        loadNextPage();
+      }
+    };
+    
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [page, loading, loadingMore, hasMore, activeCategory]);
 
   // 1. Search filter logic
   const searchedPapers = useMemo(() => {
@@ -131,11 +188,18 @@ export default function Home() {
                   ))}
                 </div>
               ) : processedPapers.length > 0 ? (
-                processedPapers.map((paper) => (
-                  <div key={paper.id} onClick={() => setSelectedPaperId(paper.id)}>
-                    <PaperCard paper={paper} />
-                  </div>
-                ))
+                <>
+                  {processedPapers.map((paper) => (
+                    <div key={paper.id} onClick={() => setSelectedPaperId(paper.id)}>
+                      <PaperCard paper={paper} />
+                    </div>
+                  ))}
+                  {loadingMore && (
+                    <div className="py-6 flex justify-center items-center">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#1E40AF]"></div>
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="flex flex-col items-center justify-center p-12 border border-dashed border-border rounded-card bg-gray-50 text-center">
                   <span className="text-base font-semibold text-secondaryText mb-1">

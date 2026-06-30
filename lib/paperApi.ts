@@ -47,9 +47,7 @@ export function mapToAnkitPaper(p: any): Paper {
   // Format repo name / star count from github_url
   let repoName = "N/A";
   if (p.github_url) {
-    if (p.github_stars !== undefined && p.github_stars !== 0) {
-      repoName = String(p.github_stars);
-    } else if (p.usage !== undefined && p.usage !== 0) {
+    if (p.usage !== undefined && p.usage !== 0) {
       repoName = String(p.usage);
     } else {
       repoName = "0";
@@ -112,8 +110,11 @@ export function mapToAnkitPaper(p: any): Paper {
   };
 }
 
-export async function getPapers(method?: string): Promise<Paper[]> {
-  const url = method ? `/api/papers?method=${encodeURIComponent(method)}` : "/api/papers";
+export async function getPapers(method?: string, page?: number, limit?: number): Promise<Paper[]> {
+  let url = "/api/papers?";
+  if (method) url += `method=${encodeURIComponent(method)}&`;
+  if (page) url += `page=${page}&`;
+  if (limit) url += `limit=${limit}&`;
   const res = await fetch(url);
   if (!res.ok) throw new Error("Failed to fetch papers from API");
   const data = await res.json();
