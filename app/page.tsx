@@ -62,14 +62,16 @@ export default function Home() {
 
   // Helper to fetch papers with page caching
   const fetchPageWithCache = async (cat: string, pageNum: number, limitVal: number): Promise<Paper[]> => {
-    const cacheKey = `${cat}_page_${pageNum}`;
+    const cacheKey = `${cat}_sort_${currentSort}_search_${searchQuery}_page_${pageNum}`;
     if (pageCacheRef.current[cacheKey]) {
       return pageCacheRef.current[cacheKey];
     }
     const data = await getPapers(
       cat === "All Methods" ? undefined : cat,
       pageNum,
-      limitVal
+      limitVal,
+      currentSort,
+      searchQuery
     );
     pageCacheRef.current[cacheKey] = data;
     return data;
@@ -102,7 +104,7 @@ export default function Home() {
     };
   };
 
-  // Reset pagination state and load initial papers on category change
+  // Reset pagination state and load initial papers on category, sort, or search change
   useEffect(() => {
     let active = true;
     async function loadInitialPapers() {
@@ -139,7 +141,7 @@ export default function Home() {
     return () => {
       active = false;
     };
-  }, [activeCategory]);
+  }, [activeCategory, currentSort, searchQuery]);
 
   const loadNextPage = async () => {
     if (loading || loadingMore || !hasMore || fetchingRef.current) return;

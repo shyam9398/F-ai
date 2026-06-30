@@ -110,11 +110,13 @@ export function mapToAnkitPaper(p: any): Paper {
   };
 }
 
-export async function getPapers(method?: string, page?: number, limit?: number): Promise<Paper[]> {
+export async function getPapers(method?: string, page?: number, limit?: number, sort?: string, search?: string): Promise<Paper[]> {
   let url = "/api/papers?";
   if (method) url += `method=${encodeURIComponent(method)}&`;
   if (page) url += `page=${page}&`;
   if (limit) url += `limit=${limit}&`;
+  if (sort) url += `sort=${encodeURIComponent(sort)}&`;
+  if (search) url += `search=${encodeURIComponent(search)}&`;
   const res = await fetch(url);
   if (!res.ok) throw new Error("Failed to fetch papers from API");
   const data = await res.json();
