@@ -8,7 +8,7 @@ export default function MethodIllustration() {
       initial={{ opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.25 }}
-      className="w-full h-full flex items-center justify-center select-none"
+      className="w-full h-full flex items-center justify-center select-none max-w-[280px] max-h-[280px]"
     >
       <img
         src="/brain_diagram.png"

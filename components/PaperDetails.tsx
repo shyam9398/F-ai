@@ -10,7 +10,7 @@ import Image from "next/image";
 import PDFViewer from "./PDFViewer";
 import CodeRepoCard from "./CodeRepoCard";
 import PlatformMapping from "./PlatformMapping";
-import { Paper, papersData } from "../data/methods";
+import { Paper } from "../lib/paperApi";
 import { usePDFThumbnail } from "../hooks/usePDFThumbnail";
 
 interface PaperDetailsProps {

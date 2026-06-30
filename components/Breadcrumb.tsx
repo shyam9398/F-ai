@@ -3,7 +3,7 @@ import { ChevronRight } from "lucide-react";
 
 export default function Breadcrumb() {
   return (
-    <nav className="flex items-center space-x-2 text-sm text-gray-500 py-4" aria-label="Breadcrumb">
+    <nav className="flex items-center space-x-2 text-sm text-gray-500 py-2" aria-label="Breadcrumb">
       <Link href="/" className="hover:text-gray-900 transition-colors">
         Home
       </Link>

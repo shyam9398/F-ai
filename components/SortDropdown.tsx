@@ -16,7 +16,7 @@ export default function SortDropdown({ currentSort, onSortChange }: SortDropdown
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-4 py-2 bg-white border border-border rounded-[14px] text-sm text-textDark hover:bg-lightGray transition-all shadow-card-sm focus:outline-hidden focus:ring-2 focus:ring-primary/20"
+        className="flex items-center gap-2 px-3 py-1.5 bg-white border border-border rounded-[12px] text-xs text-textDark hover:bg-lightGray transition-all shadow-card-sm focus:outline-hidden focus:ring-2 focus:ring-primary/20"
       >
         <span className="text-secondaryText font-normal">Sort by:</span>
         <span className="font-semibold text-textDark">{currentSort}</span>
@@ -32,7 +32,7 @@ export default function SortDropdown({ currentSort, onSortChange }: SortDropdown
                 onSortChange(option);
                 setIsOpen(false);
               }}
-              className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+              className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${
                 currentSort === option
                   ? "bg-orange-50 text-primary font-medium"
                   : "text-textDark hover:bg-lightGray"

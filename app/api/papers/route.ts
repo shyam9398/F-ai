@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
   try {
-    const response = await fetch("https://huggingface.co/api/daily_papers?limit=10", {
+    const response = await fetch("https://huggingface.co/api/daily_papers", {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
       },
@@ -73,6 +73,7 @@ export async function GET(request: NextRequest) {
         thumbnail_url: p.thumbnail || `https://cdn-thumbnails.huggingface.co/social-thumbnails/papers/${paperIdStr}.png`,
         pdf_url: `https://arxiv.org/pdf/${paperIdStr}.pdf`,
         github_url: p.githubRepo || "",
+        github_stars: p.githubStars || 0,
         project_url: `https://arxiv.org/abs/${paperIdStr}`,
         doi: `10.48550/arXiv.${paperIdStr}`,
         pages: 14 + (idx % 5),
@@ -91,7 +92,25 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return NextResponse.json(mappedPapers, {
+    const { searchParams } = new URL(request.url);
+    const methodParam = searchParams.get("method");
+
+    let finalPapers = mappedPapers;
+    if (methodParam) {
+      const targetMethod = methodParam.toLowerCase();
+      finalPapers = mappedPapers.filter((p: any) => {
+        return (
+          (p.category || "").toLowerCase() === targetMethod ||
+          (p.subject || "").toLowerCase() === targetMethod ||
+          (p.research_area || "").toLowerCase() === targetMethod ||
+          (p.tags || []).some((t: string) => t.toLowerCase() === targetMethod) ||
+          (p.methods || []).some((m: string) => m.toLowerCase() === targetMethod) ||
+          (p.keywords || []).some((k: string) => k.toLowerCase() === targetMethod)
+        );
+      });
+    }
+
+    return NextResponse.json(finalPapers, {
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Cache-Control": "public, s-maxage=3600"

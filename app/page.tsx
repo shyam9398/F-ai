@@ -4,9 +4,9 @@ import { useState, useEffect, useMemo } from "react";
 import Breadcrumb from "../components/Breadcrumb";
 import MethodHero from "../components/MethodHero";
 import FilterBar from "../components/FilterBar";
-import ResearchPaperCard from "../components/ResearchPaperCard";
+import { PaperCard } from "../components/PaperCard";
+import { getPapers, type Paper } from "../lib/paperApi";
 import PaperDetails from "../components/PaperDetails";
-import { Paper, papersData } from "../data/methods";
 
 export default function Home() {
   const [papers, setPapers] = useState<Paper[]>([]);
@@ -16,24 +16,21 @@ export default function Home() {
   const [currentSort, setCurrentSort] = useState("Popular");
   const [selectedPaperId, setSelectedPaperId] = useState<number | null>(null);
 
-  // Load papers dynamically from API route on mount
+  // Load papers dynamically from API route whenever activeCategory changes
   useEffect(() => {
     async function fetchPapers() {
       try {
         setLoading(true);
-        const res = await fetch("/api/papers");
-        if (!res.ok) throw new Error("Server responded with error");
-        const data = await res.json();
+        const data = await getPapers(activeCategory === "All Methods" ? undefined : activeCategory);
         setPapers(data);
       } catch (err) {
-        console.warn("Failed to fetch dynamic papers. Using local database as fallback: ", err);
-        setPapers(papersData);
+        console.error("Failed to fetch papers:", err);
       } finally {
         setLoading(false);
       }
     }
     fetchPapers();
-  }, []);
+  }, [activeCategory]);
 
   // 1. Search filter logic
   const searchedPapers = useMemo(() => {
@@ -109,7 +106,7 @@ export default function Home() {
             </section>
 
             {/* Research Papers Card Stack List */}
-            <section className="flex flex-col gap-6">
+            <section className="flex flex-col gap-4">
               {loading ? (
                 // Pulse Skeleton Loaders while fetching
                 <div className="space-y-6">
@@ -136,7 +133,7 @@ export default function Home() {
               ) : processedPapers.length > 0 ? (
                 processedPapers.map((paper) => (
                   <div key={paper.id} onClick={() => setSelectedPaperId(paper.id)}>
-                    <ResearchPaperCard paper={paper} />
+                    <PaperCard paper={paper} />
                   </div>
                 ))
               ) : (
