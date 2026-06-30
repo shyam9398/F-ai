@@ -7,7 +7,7 @@ import MethodIllustration from "./MethodIllustration";
 
 export default function MethodHero() {
   return (
-    <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-6 lg:gap-12 py-2 select-none">
+    <div className="flex flex-col lg:flex-row items-center justify-between gap-8 lg:gap-16 py-3 select-none">
       {/* Left side (60% width) */}
       <motion.div
         initial={{ opacity: 0, y: 15 }}
@@ -16,22 +16,22 @@ export default function MethodHero() {
         className="flex-grow lg:max-w-[58%] flex flex-col items-start text-left justify-center"
       >
         {/* Method Badge */}
-        <div className="flex items-center space-x-2 mb-3">
-          <div className="p-1 bg-orange-50 rounded-md border border-orange-100/50">
-            <FileText className="w-3.5 h-3.5 text-primary stroke-[2]" />
+        <div className="flex items-center space-x-1.5 mb-3.5">
+          <div className="p-1 bg-orange-50 rounded-[4px] border border-orange-100/50">
+            <FileText className="w-3.5 h-3.5 text-[#F55036] stroke-[2.2]" />
           </div>
-          <span className="text-[10px] font-extrabold text-secondaryText tracking-widest uppercase">
+          <span className="text-[9px] font-black text-[#8B8B8B] tracking-[0.08em] uppercase">
             METHOD
           </span>
         </div>
         
         {/* Heading */}
-        <h1 className="text-[27px] md:text-[33px] xl:text-[39px] font-extrabold tracking-tight text-textDark leading-tight mb-2">
+        <h1 className="text-[26px] md:text-[30px] lg:text-[34px] font-bold tracking-tight text-[#111111] leading-[1.2] mb-3">
           Large Language Model (LLM)
         </h1>
         
         {/* Description */}
-        <p className="text-[13px] text-secondaryText leading-snug mb-3 font-normal">
+        <p className="text-[13px] text-[#555555] leading-relaxed max-w-[620px] mb-4.5">
           A large language model (LLM) is an advanced artificial intelligence (AI) system that learns to understand, generate, and process human language by being trained on vast amounts of text data.
         </p>
         
@@ -39,7 +39,7 @@ export default function MethodHero() {
       </motion.div>
       
       {/* Right side (40% width) */}
-      <div className="w-full lg:max-w-[35%] flex-1">
+      <div className="w-full lg:max-w-[36%] flex-1">
         <MethodIllustration />
       </div>
     </div>

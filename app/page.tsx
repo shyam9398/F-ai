@@ -1,15 +1,15 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Breadcrumb from "../components/Breadcrumb";
 import MethodHero from "../components/MethodHero";
 import FilterBar from "../components/FilterBar";
-import { PaperCard } from "../components/PaperCard";
+import PaperList, { PaperCard } from "../components/PaperCard";
 import { getPapers, type Paper } from "../lib/paperApi";
 import PaperDetails from "../components/PaperDetails";
 
 export default function Home() {
-  const [papers, setPapers] = useState<Paper[]>([]);
+  const [displayedPapers, setDisplayedPapers] = useState<Paper[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All Methods");
@@ -20,55 +20,161 @@ export default function Home() {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  // Load papers dynamically from API route whenever activeCategory changes
+  const fetchingRef = useRef(false);
+  const pageCacheRef = useRef<Record<string, Paper[]>>({});
+  const allFetchedPapersRef = useRef<Paper[]>([]);
+
+  // Unique identifier Sets to guarantee no duplicate renders
+  const seenIdsRef = useRef<Set<number>>(new Set());
+  const seenDoisRef = useRef<Set<string>>(new Set());
+  const seenTitlesRef = useRef<Set<string>>(new Set());
+
+  const resetDeduplicationSets = () => {
+    seenIdsRef.current.clear();
+    seenDoisRef.current.clear();
+    seenTitlesRef.current.clear();
+    allFetchedPapersRef.current = [];
+  };
+
+  const checkAndRegisterUnique = (paper: Paper): boolean => {
+    // 1. Remove duplicate papers completely:
+    // - Deduplicate using unique ID (preferred).
+    // - If ID is unavailable, deduplicate using DOI.
+    // - If DOI is unavailable, deduplicate using title + authors.
+    if (paper.id) {
+      if (seenIdsRef.current.has(paper.id)) return false;
+      seenIdsRef.current.add(paper.id);
+      return true;
+    }
+    if (paper.doi) {
+      if (seenDoisRef.current.has(paper.doi)) return false;
+      seenDoisRef.current.add(paper.doi);
+      return true;
+    }
+    if (paper.title && paper.authors) {
+      const key = `${paper.title.toLowerCase().trim()}|${paper.authors.toLowerCase().trim()}`;
+      if (seenTitlesRef.current.has(key)) return false;
+      seenTitlesRef.current.add(key);
+      return true;
+    }
+    return true; // Fallback
+  };
+
+  // Helper to fetch papers with page caching
+  const fetchPageWithCache = async (cat: string, pageNum: number, limitVal: number): Promise<Paper[]> => {
+    const cacheKey = `${cat}_page_${pageNum}`;
+    if (pageCacheRef.current[cacheKey]) {
+      return pageCacheRef.current[cacheKey];
+    }
+    const data = await getPapers(
+      cat === "All Methods" ? undefined : cat,
+      pageNum,
+      limitVal
+    );
+    pageCacheRef.current[cacheKey] = data;
+    return data;
+  };
+
+  // Helper to fetch unique papers from the backend, skipping pages that are fully duplicate
+  const fetchUniquePapersForPage = async (cat: string, startPage: number): Promise<{ papers: Paper[]; lastPageFetched: number }> => {
+    let currentPageNum = startPage;
+    let uniquePapers: Paper[] = [];
+
+    while (true) {
+      const data = await fetchPageWithCache(cat, currentPageNum, 50);
+      if (data.length === 0) {
+        break; // No more papers available from the API
+      }
+
+      const filtered = data.filter((p) => checkAndRegisterUnique(p));
+      if (filtered.length > 0) {
+        uniquePapers = filtered;
+        break; // Found unique papers
+      }
+
+      // If all papers on the page were duplicates, skip it and fetch the next page
+      currentPageNum++;
+    }
+
+    return {
+      papers: uniquePapers,
+      lastPageFetched: currentPageNum,
+    };
+  };
+
+  // Reset pagination state and load initial papers on category change
   useEffect(() => {
+    let active = true;
     async function loadInitialPapers() {
+      if (fetchingRef.current) return;
       try {
+        fetchingRef.current = true;
         setLoading(true);
+        resetDeduplicationSets();
         setPage(1);
         setHasMore(true);
-        const data = await getPapers(
-          activeCategory === "All Methods" ? undefined : activeCategory,
-          1,
-          10
-        );
-        setPapers(data);
+
+        const { papers: uniqueBatch, lastPageFetched } = await fetchUniquePapersForPage(activeCategory, 1);
+
+        if (!active) return;
+
+        if (uniqueBatch.length === 0) {
+          setHasMore(false);
+          setDisplayedPapers([]);
+        } else {
+          allFetchedPapersRef.current = uniqueBatch;
+          setDisplayedPapers(uniqueBatch.slice(0, 20)); // Load only 20 initially
+          setPage(lastPageFetched);
+        }
       } catch (err) {
         console.error("Failed to fetch papers:", err);
       } finally {
-        setLoading(false);
+        if (active) {
+          setLoading(false);
+          fetchingRef.current = false;
+        }
       }
     }
     loadInitialPapers();
+    return () => {
+      active = false;
+    };
   }, [activeCategory]);
 
   const loadNextPage = async () => {
-    if (loading || loadingMore || !hasMore) return;
+    if (loading || loadingMore || !hasMore || fetchingRef.current) return;
+
+    // If there are unique fetched papers buffered locally, show next batch
+    if (displayedPapers.length < allFetchedPapersRef.current.length) {
+      setLoadingMore(true);
+      const currentLength = displayedPapers.length;
+      const nextBatch = allFetchedPapersRef.current.slice(0, currentLength + 20);
+      setDisplayedPapers(nextBatch);
+      setLoadingMore(false);
+      return;
+    }
+
+    // Otherwise, fetch the next page of 50 from the backend API
     try {
+      fetchingRef.current = true;
       setLoadingMore(true);
       const nextPage = page + 1;
-      const data = await getPapers(
-        activeCategory === "All Methods" ? undefined : activeCategory,
-        nextPage,
-        10
-      );
-      if (data.length === 0) {
+
+      const { papers: uniqueBatch, lastPageFetched } = await fetchUniquePapersForPage(activeCategory, nextPage);
+
+      if (uniqueBatch.length === 0) {
         setHasMore(false);
       } else {
-        setPapers((prev) => {
-          const existingIds = new Set(prev.map((p) => p.id));
-          const uniqueNew = data.filter((p) => !existingIds.has(p.id));
-          if (uniqueNew.length === 0) {
-            setHasMore(false);
-          }
-          return [...prev, ...uniqueNew];
-        });
-        setPage(nextPage);
+        allFetchedPapersRef.current = [...allFetchedPapersRef.current, ...uniqueBatch];
+        const currentLength = displayedPapers.length;
+        setDisplayedPapers(allFetchedPapersRef.current.slice(0, currentLength + 20));
+        setPage(lastPageFetched);
       }
     } catch (err) {
       console.error("Failed to load more papers:", err);
     } finally {
       setLoadingMore(false);
+      fetchingRef.current = false;
     }
   };
 
@@ -78,22 +184,22 @@ export default function Home() {
       const scrollHeight = document.documentElement.scrollHeight;
       const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
       const clientHeight = window.innerHeight;
-      
-      // Trigger load when scrolled 85% of the way down
-      if (scrollTop + clientHeight >= scrollHeight - 250) {
+
+      // Trigger load when reaching 80% of page height
+      if (scrollTop + clientHeight >= scrollHeight * 0.8) {
         loadNextPage();
       }
     };
-    
+
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [page, loading, loadingMore, hasMore, activeCategory]);
+  }, [displayedPapers, page, loading, loadingMore, hasMore, activeCategory]);
 
   // 1. Search filter logic
   const searchedPapers = useMemo(() => {
-    if (!searchQuery) return papers;
+    if (!searchQuery) return displayedPapers;
     const q = searchQuery.toLowerCase();
-    return papers.filter(
+    return displayedPapers.filter(
       (paper) =>
         (paper.title || "").toLowerCase().includes(q) ||
         (paper.authors || "").toLowerCase().includes(q) ||
@@ -102,7 +208,7 @@ export default function Home() {
         (paper.subject || "").toLowerCase().includes(q) ||
         (paper.keywords || []).some((keyword) => keyword.toLowerCase().includes(q))
     );
-  }, [papers, searchQuery]);
+  }, [displayedPapers, searchQuery]);
 
   // 2. Discover Category filter logic (from filter bar category pills)
   const categoryFilteredPapers = useMemo(() => {
@@ -115,7 +221,7 @@ export default function Home() {
   // 3. Sorting logic (Citations, Newest)
   const processedPapers = useMemo(() => {
     const papersCopy = [...categoryFilteredPapers];
-    
+
     if (currentSort === "Popular" || currentSort === "Citations") {
       return papersCopy.sort((a, b) => b.citations - a.citations);
     } else if (currentSort === "Newest") {
@@ -127,8 +233,8 @@ export default function Home() {
   // Find the selected paper object
   const selectedPaper = useMemo(() => {
     if (selectedPaperId === null) return null;
-    return papers.find((p) => p.id === selectedPaperId) || null;
-  }, [papers, selectedPaperId]);
+    return displayedPapers.find((p) => p.id === selectedPaperId) || null;
+  }, [displayedPapers, selectedPaperId]);
 
   return (
     <div className="min-h-screen flex flex-col bg-lightGray">
@@ -140,20 +246,20 @@ export default function Home() {
             paper={selectedPaper}
             onClose={() => setSelectedPaperId(null)}
             onPaperChange={setSelectedPaperId}
-            allPapers={papers}
+            allPapers={displayedPapers}
           />
         ) : (
           /* Main Trending Paper Feed list */
-          <div className="space-y-6 max-w-[1280px] mx-auto">
-            <header>
+          <div className="flex flex-col gap-4 max-w-[1280px] mx-auto">
+            <header className="mb-0.5">
               <Breadcrumb />
             </header>
 
-            <section>
+            <section className="mb-1">
               <MethodHero />
             </section>
 
-            <section>
+            <section className="mb-1.5">
               <FilterBar
                 activeCategory={activeCategory}
                 onCategoryChange={setActiveCategory}
@@ -165,14 +271,13 @@ export default function Home() {
             {/* Research Papers Card Stack List */}
             <section className="flex flex-col gap-4">
               {loading ? (
-                // Pulse Skeleton Loaders while fetching
                 <div className="space-y-6">
                   {[1, 2, 3].map((n) => (
                     <div 
                       key={n} 
                       className="flex flex-col md:flex-row items-center gap-6 p-5 border border-border bg-white rounded-card animate-pulse"
                     >
-                      <div className="w-[110px] h-[145px] bg-gray-100 border border-border rounded-lg shrink-0" />
+                      <div className="w-[130px] h-[175px] bg-gray-100 border border-border rounded-lg shrink-0" />
                       <div className="flex-1 space-y-3 w-full">
                         <div className="h-6 bg-gray-200 rounded-md w-3/4" />
                         <div className="h-4 bg-gray-100 rounded-md w-1/2" />
@@ -189,14 +294,15 @@ export default function Home() {
                 </div>
               ) : processedPapers.length > 0 ? (
                 <>
-                  {processedPapers.map((paper) => (
-                    <div key={paper.id} onClick={() => setSelectedPaperId(paper.id)}>
-                      <PaperCard paper={paper} />
-                    </div>
-                  ))}
+                  <PaperList papers={processedPapers} onPaperClick={setSelectedPaperId} />
                   {loadingMore && (
                     <div className="py-6 flex justify-center items-center">
                       <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#1E40AF]"></div>
+                    </div>
+                  )}
+                  {!hasMore && (
+                    <div className="py-6 text-center text-xs font-semibold text-gray-400 select-none">
+                      No more papers available
                     </div>
                   )}
                 </>

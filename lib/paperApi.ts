@@ -45,7 +45,7 @@ export function mapToAnkitPaper(p: any): Paper {
   const citationsVal = typeof p.citations === "number" ? p.citations : parseInt(p.citations) || 0;
   
   // Format repo name / star count from github_url
-  let repoName = "N/A";
+  let repoName = "0";
   if (p.github_url) {
     if (p.usage !== undefined && p.usage !== 0) {
       repoName = String(p.usage);

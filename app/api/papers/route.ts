@@ -31,13 +31,25 @@ export async function GET(request: NextRequest) {
     
     let resultPapers = finalPapers;
     if (hasPage || hasLimit) {
+      // Determine page number (default to 1) and limit (default to all papers if not specified)
       const page = parseInt(searchParams.get("page") || "1");
-      const limit = parseInt(searchParams.get("limit") || "10");
+      const limit = hasLimit ? parseInt(searchParams.get("limit") || "10") : finalPapers.length;
+      
+      const startIdx = (page - 1) * limit;
+      if (startIdx >= 10000) {
+        return NextResponse.json([], {
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0"
+          }
+        });
+      }
       
       let paged = [];
       const count = finalPapers.length;
       if (count > 0) {
-        const startIdx = (page - 1) * limit;
         for (let i = 0; i < limit; i++) {
           const index = (startIdx + i) % count;
           const originalPaper = finalPapers[index];

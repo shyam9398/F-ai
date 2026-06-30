@@ -3,16 +3,16 @@ import { ChevronRight } from "lucide-react";
 
 export default function Breadcrumb() {
   return (
-    <nav className="flex items-center space-x-2 text-sm text-gray-500 py-2" aria-label="Breadcrumb">
-      <Link href="/" className="hover:text-gray-900 transition-colors">
+    <nav className="flex items-center space-x-1.5 text-[11.5px] font-sans text-gray-500 py-1" aria-label="Breadcrumb">
+      <Link href="/" className="hover:text-gray-950 transition-colors">
         Home
       </Link>
-      <ChevronRight className="w-4 h-4 text-gray-300" />
-      <Link href="/methods" className="hover:text-gray-900 transition-colors">
+      <ChevronRight className="w-3 h-3 text-gray-400 stroke-[1.8]" />
+      <span className="text-gray-500">
         Methods
-      </Link>
-      <ChevronRight className="w-4 h-4 text-gray-300" />
-      <span className="text-primary font-medium">Large Language Model (LLM)</span>
+      </span>
+      <ChevronRight className="w-3 h-3 text-gray-400 stroke-[1.8]" />
+      <span className="text-[#F55036] font-semibold">Large Language Model (LLM)</span>
     </nav>
   );
 }

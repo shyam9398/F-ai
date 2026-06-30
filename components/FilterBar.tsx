@@ -26,24 +26,26 @@ export default function FilterBar({
   ];
 
   return (
-    <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2 p-2 bg-white border border-border rounded-card shadow-card-sm w-full">
-      <div className="flex flex-col md:flex-row items-start md:items-center gap-2 w-full lg:w-auto">
-        <span className="text-[11px] font-extrabold text-secondaryText tracking-widest uppercase whitespace-nowrap px-2">
+    <div className="flex flex-row items-center justify-between bg-white border border-[#EAEAEA] rounded-[16px] h-[60px] px-[24px] w-full select-none flex-nowrap shadow-[0_1px_3px_rgba(0,0,0,0.01)]">
+      {/* Left container with label and scrollable filter pills */}
+      <div className="flex flex-row items-center gap-[28px] overflow-x-auto md:overflow-x-visible scrollbar-none flex-nowrap flex-grow pr-4">
+        {/* Label */}
+        <span className="text-[14px] font-bold text-[#5F6672] tracking-[0.08em] uppercase shrink-0 w-[170px] flex items-center">
           FILTER METHODS
         </span>
         
         {/* Pills container */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-row items-center gap-[10px] overflow-x-auto md:overflow-x-visible scrollbar-none flex-nowrap py-1">
           {categories.map((category) => {
             const isActive = activeCategory === category;
             return (
               <button
                 key={category}
                 onClick={() => onCategoryChange(category)}
-                className={`px-3 py-1.5 text-[12px] font-semibold rounded-[12px] transition-all duration-250 cursor-pointer border ${
+                className={`h-[34px] px-[16px] text-[14px] font-medium rounded-[10px] transition-all duration-200 cursor-pointer border shrink-0 ${
                   isActive
-                    ? "bg-white text-primary border-primary"
-                    : "bg-white text-textDark border-border hover:border-primary hover:bg-[#FFF7ED]"
+                    ? "bg-[#FFF3EE] text-[#FF6A3D] border-[#FF6A3D]"
+                    : "bg-white text-[#2F2F2F] border-[#E5E7EB] hover:border-[#FF6A3D]/40"
                 }`}
               >
                 {category}
@@ -53,7 +55,8 @@ export default function FilterBar({
         </div>
       </div>
       
-      <div className="self-end lg:self-auto px-2">
+      {/* Right container with Sort dropdown */}
+      <div className="shrink-0 ml-auto pl-2 flex items-center">
         <SortDropdown currentSort={currentSort} onSortChange={onSortChange} />
       </div>
     </div>

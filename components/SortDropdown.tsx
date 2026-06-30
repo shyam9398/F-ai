@@ -13,18 +13,20 @@ export default function SortDropdown({ currentSort, onSortChange }: SortDropdown
   const options = ["Popular", "Newest", "Citations"];
 
   return (
-    <div className="relative">
+    <div className="relative select-none font-sans">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-1.5 bg-white border border-border rounded-[12px] text-xs text-textDark hover:bg-lightGray transition-all shadow-card-sm focus:outline-hidden focus:ring-2 focus:ring-primary/20"
+        className="flex items-center w-[165px] h-[34px] px-[18px] bg-white border border-[#E5E7EB] rounded-[10px] text-[14px] text-[#2F2F2F] hover:border-[#FF6A3D]/40 transition-all duration-200 focus:outline-hidden cursor-pointer"
       >
-        <span className="text-secondaryText font-normal">Sort by:</span>
-        <span className="font-semibold text-textDark">{currentSort}</span>
-        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        <div className="flex items-center gap-1.5">
+          <span className="text-[#5F6672] font-normal">Sort by:</span>
+          <span className="font-bold text-[#2F2F2F]">{currentSort}</span>
+        </div>
+        <ChevronDown className={`w-4 h-4 text-gray-400 ml-auto transition-transform duration-200 shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-40 bg-white border border-border rounded-[14px] shadow-card-lg py-1 z-10">
+        <div className="absolute right-0 mt-1.5 w-[165px] bg-white border border-[#E5E7EB] rounded-[10px] shadow-[0_4px_12px_rgba(0,0,0,0.05)] py-1 z-10">
           {options.map((option) => (
             <button
               key={option}
@@ -32,10 +34,10 @@ export default function SortDropdown({ currentSort, onSortChange }: SortDropdown
                 onSortChange(option);
                 setIsOpen(false);
               }}
-              className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${
+              className={`w-full text-left px-[18px] py-2.5 text-[14px] transition-colors cursor-pointer ${
                 currentSort === option
-                  ? "bg-orange-50 text-primary font-medium"
-                  : "text-textDark hover:bg-lightGray"
+                  ? "bg-[#FFF3EE] text-[#FF6A3D] font-bold"
+                  : "text-[#2F2F2F] hover:bg-[#FAFAFA]"
               }`}
             >
               {option}
