@@ -142,7 +142,12 @@ export async function getPapers(
   sort?: string,
   search?: string,
   ids?: string[]
-): Promise<{ papers: Paper[]; totalCount: number; methods: { name: string; slug: string }[] }> {
+): Promise<{ 
+  papers: Paper[]; 
+  totalCount: number; 
+  totalPapersCount: number;
+  methods: { name: string; slug: string; paper_count: number }[] 
+}> {
   let url = "/api/papers?";
   if (method) url += `method=${encodeURIComponent(method)}&`;
   if (page) url += `page=${page}&`;
@@ -157,11 +162,13 @@ export async function getPapers(
   
   const papersArray = Array.isArray(data.papers) ? data.papers : [];
   const totalCount = typeof data.totalCount === "number" ? data.totalCount : papersArray.length;
+  const totalPapersCount = typeof data.totalPapersCount === "number" ? data.totalPapersCount : totalCount;
   const methodsArray = Array.isArray(data.methods) ? data.methods : [];
 
   return {
     papers: papersArray.map(mapToAnkitPaper),
     totalCount,
+    totalPapersCount,
     methods: methodsArray,
   };
 }

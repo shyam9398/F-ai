@@ -18,7 +18,8 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All Methods");
   const [currentSort, setCurrentSort] = useState("Popular");
-  const [methods, setMethods] = useState<{ name: string; slug: string }[]>([]);
+  const [methods, setMethods] = useState<{ name: string; slug: string; paper_count: number }[]>([]);
+  const [totalPapersCount, setTotalPapersCount] = useState<number>(0);
   const [selectedPaperId, setSelectedPaperId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"feed" | "saved" | "bookmarks">("feed");
 
@@ -79,6 +80,9 @@ export default function Home() {
 
       if (data.methods && data.methods.length > 0) {
         setMethods(data.methods);
+      }
+      if (typeof data.totalPapersCount === "number") {
+        setTotalPapersCount(data.totalPapersCount);
       }
 
       setHasMore(data.papers.length >= limit);
@@ -192,6 +196,7 @@ export default function Home() {
                 currentSort={currentSort}
                 onSortChange={setCurrentSort}
                 methods={methods}
+                totalPapersCount={totalPapersCount}
               />
             </section>
 

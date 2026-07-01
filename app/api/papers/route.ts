@@ -23,10 +23,12 @@ export async function GET(request: NextRequest) {
     });
 
     const methods = await PaperRepository.getAllMethods();
+    const totalPapersCount = await PaperRepository.getTotalPapersCount();
 
     return NextResponse.json({
       papers,
       totalCount,
+      totalPapersCount,
       methods,
     }, {
       headers: {

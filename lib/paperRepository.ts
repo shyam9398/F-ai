@@ -258,11 +258,30 @@ export class PaperRepository {
   }
 
   /**
-   * Retrieve all methods from the database.
+   * Retrieve all methods from the database with their respective paper count.
    */
   static async getAllMethods(): Promise<any[]> {
     await checkDbStatus();
-    const result = await pool.query("SELECT name, slug FROM methods ORDER BY name;");
+    const result = await pool.query(`
+      SELECT 
+        m.id, 
+        m.name, 
+        m.slug, 
+        COUNT(DISTINCT pm.paper_id)::integer AS paper_count
+      FROM methods m
+      LEFT JOIN paper_methods pm ON m.id = pm.method_id
+      GROUP BY m.id, m.name, m.slug
+      ORDER BY m.name;
+    `);
     return result.rows;
+  }
+
+  /**
+   * Retrieve total unfiltered count of papers in the database.
+   */
+  static async getTotalPapersCount(): Promise<number> {
+    await checkDbStatus();
+    const result = await pool.query("SELECT COUNT(*)::integer AS count FROM papers;");
+    return result.rows[0].count;
   }
 }
