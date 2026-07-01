@@ -160,13 +160,16 @@ export default function Home() {
   const visiblePapers = getFilteredByPeriod(displayedPapers);
 
   return (
-    <div className="min-h-screen flex flex-col bg-lightGray font-sans select-none">
+    <div className="min-h-screen flex flex-col bg-transparent font-sans select-none">
       {/* 1. Header Sticky Navbar */}
       <Header />
 
       {/* 2. Top Banner (Centered Search Bar & Topic Chips) */}
       <div className="bg-[#FAF9F5] border-b border-border py-8 text-center select-none">
         <div className="max-w-[800px] mx-auto px-4 space-y-4">
+          <h1 className="text-[36px] md:text-[42px] font-black text-textDark tracking-tight leading-none mb-3">
+            Discover what's next in <span className="text-[#FF6A3D]">AI research.</span>
+          </h1>
           <p className="text-xs font-bold text-secondaryText tracking-wide uppercase">
             Search, discover, and track papers, methods, benchmarks, and open-source releases.
           </p>
