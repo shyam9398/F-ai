@@ -18,6 +18,7 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All Methods");
   const [currentSort, setCurrentSort] = useState("Popular");
+  const [methods, setMethods] = useState<{ name: string; slug: string }[]>([]);
   const [selectedPaperId, setSelectedPaperId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"feed" | "saved" | "bookmarks">("feed");
 
@@ -71,12 +72,16 @@ export default function Home() {
       );
 
       if (append) {
-        setDisplayedPapers((prev) => [...prev, ...data]);
+        setDisplayedPapers((prev) => [...prev, ...data.papers]);
       } else {
-        setDisplayedPapers(data);
+        setDisplayedPapers(data.papers);
       }
 
-      setHasMore(data.length >= limit);
+      if (data.methods && data.methods.length > 0) {
+        setMethods(data.methods);
+      }
+
+      setHasMore(data.papers.length >= limit);
       setPage(pageNum);
     } catch (err: any) {
       console.error("Failed to load papers:", err);
@@ -186,6 +191,7 @@ export default function Home() {
                 onCategoryChange={setActiveCategory}
                 currentSort={currentSort}
                 onSortChange={setCurrentSort}
+                methods={methods}
               />
             </section>
 

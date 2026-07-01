@@ -57,13 +57,10 @@ export class PaperRepository {
       return { papers: [], totalCount: 0 };
     }
 
-    // Category filter: checks if category matches task name/slug or method name/slug
+    // Category filter: checks if category matches method name/slug
     if (category && category !== "All Methods") {
       addCondition(
-        `(EXISTS (SELECT 1 FROM paper_tasks pt JOIN tasks t ON pt.task_id = t.id WHERE pt.paper_id = p.id AND (t.name = ? OR t.slug = ?)) OR 
-          EXISTS (SELECT 1 FROM paper_methods pm JOIN methods m ON pm.method_id = m.id WHERE pm.paper_id = p.id AND (m.name = ? OR m.slug = ?)))`,
-        category,
-        category.toLowerCase().replace(/\s+/g, "-"),
+        `EXISTS (SELECT 1 FROM paper_methods pm JOIN methods m ON pm.method_id = m.id WHERE pm.paper_id = p.id AND (m.name = ? OR m.slug = ?))`,
         category,
         category.toLowerCase().replace(/\s+/g, "-")
       );
@@ -154,12 +151,16 @@ export class PaperRepository {
     let orderBy = "ORDER BY p.publication_date DESC, p.id DESC";
     if (sort) {
       const s = sort.toLowerCase();
-      if (s === "popular" || s === "citations" || s === "most cited") {
+      if (s === "popular") {
         orderBy = "ORDER BY p.citation_count DESC, p.publication_date DESC";
-      } else if (s === "newest" || s === "latest") {
+      } else if (s === "latest" || s === "newest") {
         orderBy = "ORDER BY p.publication_date DESC, p.id DESC";
       } else if (s === "trending") {
         orderBy = "ORDER BY p.trending_score DESC, p.github_stars DESC";
+      } else if (s === "most cited" || s === "citations") {
+        orderBy = "ORDER BY p.citation_count DESC, p.id DESC";
+      } else if (s === "oldest") {
+        orderBy = "ORDER BY p.publication_date ASC, p.id ASC";
       }
     }
 
@@ -253,6 +254,15 @@ export class PaperRepository {
       LIMIT 6
     `;
     const result = await pool.query(query, [paper.id]);
+    return result.rows;
+  }
+
+  /**
+   * Retrieve all methods from the database.
+   */
+  static async getAllMethods(): Promise<any[]> {
+    await checkDbStatus();
+    const result = await pool.query("SELECT name, slug FROM methods ORDER BY name;");
     return result.rows;
   }
 }

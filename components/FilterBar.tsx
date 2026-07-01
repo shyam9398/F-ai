@@ -7,6 +7,7 @@ interface FilterBarProps {
   onCategoryChange: (category: string) => void;
   currentSort: string;
   onSortChange: (sort: string) => void;
+  methods: { name: string; slug: string }[];
 }
 
 export default function FilterBar({
@@ -14,15 +15,11 @@ export default function FilterBar({
   onCategoryChange,
   currentSort,
   onSortChange,
+  methods,
 }: FilterBarProps) {
   const categories = [
     "All Methods",
-    "Architecture",
-    "Optimization",
-    "Training",
-    "Attention",
-    "Regularization",
-    "Embedding"
+    ...methods.map((m) => m.name)
   ];
 
   return (

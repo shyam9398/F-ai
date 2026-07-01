@@ -361,6 +361,56 @@ export default function PaperDetails({ paperId, onClose, onPaperChange, allPaper
               </div>
             </div>
           )}
+
+          {/* Related Papers Section embedded directly in Left Column */}
+          {relatedPapers.length > 0 && (
+            <section className="border-t border-border pt-10 text-left">
+              <h2 className="text-lg font-black text-textDark mb-5 flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-primary" />
+                <span>Related Research Papers</span>
+              </h2>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {relatedPapers.map((rp) => (
+                  <div 
+                    key={rp.id}
+                    onClick={() => onPaperChange(rp.id)}
+                    className="group p-4 border border-border hover:border-primary hover:shadow-card-lg hover:-translate-y-[2px] rounded-card transition-all duration-300 cursor-pointer flex gap-4 bg-white h-[120px] overflow-hidden"
+                  >
+                    <div className="w-[48px] h-[64px] relative border border-border rounded-md overflow-hidden bg-gray-50 flex items-center justify-center shrink-0">
+                      {rp.thumbnail_url || rp.thumbnail ? (
+                        <Image
+                          src={rp.thumbnail_url || rp.thumbnail}
+                          alt={rp.title}
+                          width={48}
+                          height={64}
+                          className="w-full h-full object-contain p-1"
+                          unoptimized
+                        />
+                      ) : (
+                        <div className="text-[7px] text-gray-400 font-mono text-center px-0.5">Generating...</div>
+                      )}
+                    </div>
+                    <div className="flex flex-col justify-between min-w-0 py-0.5 w-full">
+                      <div>
+                        <h4 className="text-xs font-bold text-textDark group-hover:text-primary transition-colors leading-snug line-clamp-2">
+                          {rp.title}
+                        </h4>
+                        <span className="text-[10px] text-secondaryText block truncate mt-1">
+                          {rp.authors} • {rp.year}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className="text-[8px] font-bold text-secondaryText uppercase tracking-wider bg-lightGray px-2 py-0.5 rounded-full border border-border">
+                          {rp.category}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
 
         {/* Right Sidebar Layout Panel (sticky behavior on desktop) */}
@@ -521,56 +571,6 @@ export default function PaperDetails({ paperId, onClose, onPaperChange, allPaper
           </div>
         </div>
       </div>
-
-      {/* 3. Related Papers Grid */}
-      {relatedPapers.length > 0 && (
-        <section className="border-t border-border pt-12 text-left mb-8">
-          <h2 className="text-2xl font-black text-textDark mb-6 flex items-center gap-2">
-            <BookOpen className="w-6 h-6 text-primary" />
-            <span>Related Research Papers</span>
-          </h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {relatedPapers.map((rp) => (
-              <div 
-                key={rp.id}
-                onClick={() => onPaperChange(rp.id)}
-                className="group p-5 border border-border hover:border-primary hover:shadow-card-lg hover:-translate-y-[2px] rounded-card transition-all duration-300 cursor-pointer flex gap-4 bg-white md:h-[135px] overflow-hidden"
-              >
-                <div className="w-[60px] h-[78px] relative border border-border rounded-md overflow-hidden bg-gray-50 flex items-center justify-center shrink-0">
-                  {rp.thumbnail_url || rp.thumbnail ? (
-                    <Image
-                      src={rp.thumbnail_url || rp.thumbnail}
-                      alt={rp.title}
-                      width={60}
-                      height={78}
-                      className="w-full h-full object-contain p-1"
-                      unoptimized
-                    />
-                  ) : (
-                    <div className="text-[8px] text-gray-400 font-mono text-center px-1">Generating...</div>
-                  )}
-                </div>
-                <div className="flex flex-col justify-between min-w-0 py-0.5 w-full">
-                  <div>
-                    <h4 className="text-sm font-bold text-textDark group-hover:text-primary transition-colors leading-snug line-clamp-2">
-                      {rp.title}
-                    </h4>
-                    <span className="text-xs text-secondaryText block truncate mt-1">
-                      {rp.authors} • {rp.year}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5 mt-2">
-                    <span className="text-[9px] font-bold text-secondaryText uppercase tracking-wider bg-lightGray px-2 py-0.5 rounded-full border border-border">
-                      {rp.category}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
 
       {/* 4. PDF Document Viewer Modal Overlay */}
       {showPDF && (

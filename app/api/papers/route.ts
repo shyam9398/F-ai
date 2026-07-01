@@ -22,9 +22,12 @@ export async function GET(request: NextRequest) {
       ids,
     });
 
+    const methods = await PaperRepository.getAllMethods();
+
     return NextResponse.json({
       papers,
       totalCount,
+      methods,
     }, {
       headers: {
         "Access-Control-Allow-Origin": "*",

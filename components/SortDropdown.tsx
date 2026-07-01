@@ -10,7 +10,7 @@ interface SortDropdownProps {
 
 export default function SortDropdown({ currentSort, onSortChange }: SortDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const options = ["Popular", "Newest", "Citations"];
+  const options = ["Popular", "Latest", "Trending", "Most Cited", "Oldest"];
 
   return (
     <div className="relative select-none font-sans">

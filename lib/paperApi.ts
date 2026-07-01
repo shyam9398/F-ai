@@ -142,7 +142,7 @@ export async function getPapers(
   sort?: string,
   search?: string,
   ids?: string[]
-): Promise<Paper[]> {
+): Promise<{ papers: Paper[]; totalCount: number; methods: { name: string; slug: string }[] }> {
   let url = "/api/papers?";
   if (method) url += `method=${encodeURIComponent(method)}&`;
   if (page) url += `page=${page}&`;
@@ -154,8 +154,16 @@ export async function getPapers(
   const res = await fetch(url);
   if (!res.ok) throw new Error("Failed to fetch papers from API");
   const data = await res.json();
-  const papersArray = Array.isArray(data) ? data : (data.papers || []);
-  return papersArray.map(mapToAnkitPaper);
+  
+  const papersArray = Array.isArray(data.papers) ? data.papers : [];
+  const totalCount = typeof data.totalCount === "number" ? data.totalCount : papersArray.length;
+  const methodsArray = Array.isArray(data.methods) ? data.methods : [];
+
+  return {
+    papers: papersArray.map(mapToAnkitPaper),
+    totalCount,
+    methods: methodsArray,
+  };
 }
 
 /**

@@ -11,20 +11,91 @@ interface PDFViewerProps {
   pdfUrl: string;
 }
 
+interface PDFPageProps {
+  pdf: any;
+  pageNumber: number;
+  scale: number;
+  onRenderSuccess: () => void;
+}
+
+function PDFPage({ pdf, pageNumber, scale, onRenderSuccess }: PDFPageProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const renderTaskRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (!pdf || !canvasRef.current) return;
+
+    let active = true;
+    const renderPage = async () => {
+      try {
+        const page = await pdf.getPage(pageNumber);
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const context = canvas.getContext("2d");
+        if (!context) return;
+
+        let viewportScale = scale;
+        if (scale === 0) {
+          // Fit Width calculation using parent container width
+          const containerWidth = canvas.parentElement?.parentElement?.clientWidth || 800;
+          const defaultViewport = page.getViewport({ scale: 1.0 });
+          viewportScale = (containerWidth - 60) / defaultViewport.width;
+        }
+
+        const viewport = page.getViewport({ scale: viewportScale });
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+
+        const renderContext = {
+          canvasContext: context,
+          viewport: viewport,
+        };
+
+        if (renderTaskRef.current) {
+          renderTaskRef.current.cancel();
+        }
+
+        const renderTask = page.render(renderContext);
+        renderTaskRef.current = renderTask;
+
+        await renderTask.promise;
+        if (active) {
+          onRenderSuccess();
+        }
+      } catch (err: any) {
+        if (err.name !== "RenderingCancelledException") {
+          console.error(`Page ${pageNumber} rendering error:`, err);
+        }
+      }
+    };
+
+    renderPage();
+    return () => {
+      active = false;
+      if (renderTaskRef.current) {
+        renderTaskRef.current.cancel();
+      }
+    };
+  }, [pdf, pageNumber, scale, onRenderSuccess]);
+
+  return <canvas ref={canvasRef} className="w-full h-auto block" />;
+}
+
 export default function PDFViewer({ pdfUrl }: PDFViewerProps) {
   const [pdf, setPdf] = useState<any>(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [numPages, setNumPages] = useState(0);
   const [scale, setScale] = useState(1.2);
   const [loading, setLoading] = useState(true);
-  const [rendering, setRendering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  // Track how many pages have finished rendering
+  const [renderedPages, setRenderedPages] = useState<Record<number, boolean>>({});
 
-  const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const renderTasksRef = useRef<(any | null)[]>([]);
 
   // Initialize PDF.js worker
   useEffect(() => {
@@ -46,8 +117,7 @@ export default function PDFViewer({ pdfUrl }: PDFViewerProps) {
     setPdf(null);
     setPageNumber(1);
     setNumPages(0);
-    canvasRefs.current = [];
-    renderTasksRef.current = [];
+    setRenderedPages({});
 
     const pdfjsLib = (window as any).pdfjsLib;
 
@@ -70,86 +140,25 @@ export default function PDFViewer({ pdfUrl }: PDFViewerProps) {
     );
   }, [pdfUrl]);
 
-  // Render all pages to their respective canvases sequentially
-  useEffect(() => {
-    if (!pdf || numPages === 0) return;
-
-    let active = true;
-    const renderPages = async () => {
-      setRendering(true);
-      try {
-        // Cancel all existing tasks
-        renderTasksRef.current.forEach(task => task?.cancel());
-        renderTasksRef.current = new Array(numPages).fill(null);
-
-        for (let i = 1; i <= numPages; i++) {
-          if (!active) break;
-          const page = await pdf.getPage(i);
-          const canvas = canvasRefs.current[i - 1];
-          if (!canvas) continue;
-          
-          const context = canvas.getContext("2d");
-          if (!context) continue;
-
-          let viewportScale = scale;
-          if (scale === 0) {
-            // Fit Width calculation
-            const containerWidth = scrollContainerRef.current?.clientWidth || 800;
-            const defaultViewport = page.getViewport({ scale: 1.0 });
-            viewportScale = (containerWidth - 60) / defaultViewport.width;
-          }
-
-          const viewport = page.getViewport({ scale: viewportScale });
-          canvas.height = viewport.height;
-          canvas.width = viewport.width;
-
-          const renderContext = {
-            canvasContext: context,
-            viewport: viewport,
-          };
-
-          const renderTask = page.render(renderContext);
-          renderTasksRef.current[i - 1] = renderTask;
-
-          await renderTask.promise;
-        }
-      } catch (err: any) {
-        if (err.name !== "RenderingCancelledException") {
-          console.error("Multi-page rendering error: ", err);
-        }
-      } finally {
-        if (active) {
-          setRendering(false);
-        }
-      }
-    };
-
-    renderPages();
-    return () => {
-      active = false;
-      renderTasksRef.current.forEach(task => task?.cancel());
-    };
-  }, [pdf, numPages, scale]);
-
   // Zoom handlers
   const zoomIn = () => setScale(prev => (prev === 0 ? 1.2 : prev + 0.2));
   const zoomOut = () => setScale(prev => (prev === 0 ? 1.0 : Math.max(0.6, prev - 0.2)));
   const fitWidth = () => setScale(0);
 
-  // Scroll handler to track active page number dynamically
+  // Scroll handler to track active page number dynamically based on element position
   const handleScroll = () => {
     if (!scrollContainerRef.current || numPages === 0) return;
     const container = scrollContainerRef.current;
     const scrollTop = container.scrollTop;
     const containerHeight = container.clientHeight;
 
+    const children = container.querySelectorAll("[data-page]");
     let currentPage = 1;
     let accumulatedHeight = 0;
 
-    for (let i = 0; i < numPages; i++) {
-      const canvas = canvasRefs.current[i];
-      if (!canvas) continue;
-      accumulatedHeight += canvas.clientHeight + 16; // height + gap
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i] as HTMLElement;
+      accumulatedHeight += child.clientHeight + 16; // height + gap
       if (scrollTop + containerHeight / 2 < accumulatedHeight) {
         currentPage = i + 1;
         break;
@@ -160,9 +169,11 @@ export default function PDFViewer({ pdfUrl }: PDFViewerProps) {
 
   // Paging navigation buttons smooth scrolling helper
   const scrollToPage = (pageNum: number) => {
-    const canvas = canvasRefs.current[pageNum - 1];
-    if (canvas && scrollContainerRef.current) {
-      canvas.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (!scrollContainerRef.current) return;
+    const container = scrollContainerRef.current;
+    const target = container.querySelector(`[data-page="${pageNum}"]`);
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
       setPageNumber(pageNum);
     }
   };
@@ -324,16 +335,29 @@ export default function PDFViewer({ pdfUrl }: PDFViewerProps) {
           </div>
         )}
 
-        {!error && !loading && Array.from({ length: numPages }, (_, index) => (
-          <div 
-            key={index + 1} 
-            className={`transition-all duration-300 shadow-xl border border-zinc-700 bg-white rounded-md overflow-hidden ${
-              rendering ? "opacity-75" : "opacity-100"
-            }`}
-          >
-            <canvas ref={el => { canvasRefs.current[index] = el; }} />
-          </div>
-        ))}
+        {!error && !loading && Array.from({ length: numPages }, (_, index) => {
+          const pageNum = index + 1;
+          return (
+            <div 
+              key={pageNum} 
+              data-page={pageNum}
+              className="transition-all duration-300 shadow-xl border border-zinc-700 bg-white rounded-md overflow-hidden w-full max-w-[850px] relative"
+              style={{ minHeight: "300px" }}
+            >
+              {!renderedPages[pageNum] && (
+                <div className="absolute inset-0 flex items-center justify-center bg-zinc-100 animate-pulse">
+                  <span className="text-[10px] font-bold text-gray-400">Rendering Page {pageNum}...</span>
+                </div>
+              )}
+              <PDFPage 
+                pdf={pdf} 
+                pageNumber={pageNum} 
+                scale={scale} 
+                onRenderSuccess={() => setRenderedPages(prev => ({ ...prev, [pageNum]: true }))}
+              />
+            </div>
+          );
+        })}
       </div>
     </div>
   );
