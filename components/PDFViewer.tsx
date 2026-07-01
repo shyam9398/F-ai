@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useRef } from "react";
 import { 
-  ZoomIn, ZoomOut, Maximize2, Minimize2, Download, 
-  ExternalLink, ChevronLeft, ChevronRight, Maximize, 
-  Loader2, AlertTriangle, CheckSquare
+  ZoomIn, ZoomOut, Download, 
+  ExternalLink, ChevronLeft, ChevronRight, Maximize2, Minimize2,
+  Loader2, AlertTriangle
 } from "lucide-react";
 
 interface PDFViewerProps {
@@ -21,9 +21,10 @@ export default function PDFViewer({ pdfUrl }: PDFViewerProps) {
   const [error, setError] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
-  const renderTaskRef = useRef<any>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const renderTasksRef = useRef<(any | null)[]>([]);
 
   // Initialize PDF.js worker
   useEffect(() => {
@@ -44,6 +45,9 @@ export default function PDFViewer({ pdfUrl }: PDFViewerProps) {
     setError(null);
     setPdf(null);
     setPageNumber(1);
+    setNumPages(0);
+    canvasRefs.current = [];
+    renderTasksRef.current = [];
 
     const pdfjsLib = (window as any).pdfjsLib;
 
@@ -66,65 +70,112 @@ export default function PDFViewer({ pdfUrl }: PDFViewerProps) {
     );
   }, [pdfUrl]);
 
-  // Render current page to canvas
+  // Render all pages to their respective canvases sequentially
   useEffect(() => {
-    if (!pdf || !canvasRef.current) return;
+    if (!pdf || numPages === 0) return;
 
-    const renderPage = async () => {
+    let active = true;
+    const renderPages = async () => {
+      setRendering(true);
       try {
-        setRendering(true);
-        const page = await pdf.getPage(pageNumber);
-        
-        // Cancel existing render task if any
-        if (renderTaskRef.current) {
-          renderTaskRef.current.cancel();
+        // Cancel all existing tasks
+        renderTasksRef.current.forEach(task => task?.cancel());
+        renderTasksRef.current = new Array(numPages).fill(null);
+
+        for (let i = 1; i <= numPages; i++) {
+          if (!active) break;
+          const page = await pdf.getPage(i);
+          const canvas = canvasRefs.current[i - 1];
+          if (!canvas) continue;
+          
+          const context = canvas.getContext("2d");
+          if (!context) continue;
+
+          let viewportScale = scale;
+          if (scale === 0) {
+            // Fit Width calculation
+            const containerWidth = scrollContainerRef.current?.clientWidth || 800;
+            const defaultViewport = page.getViewport({ scale: 1.0 });
+            viewportScale = (containerWidth - 60) / defaultViewport.width;
+          }
+
+          const viewport = page.getViewport({ scale: viewportScale });
+          canvas.height = viewport.height;
+          canvas.width = viewport.width;
+
+          const renderContext = {
+            canvasContext: context,
+            viewport: viewport,
+          };
+
+          const renderTask = page.render(renderContext);
+          renderTasksRef.current[i - 1] = renderTask;
+
+          await renderTask.promise;
         }
-
-        const canvas = canvasRef.current!;
-        const context = canvas.getContext("2d");
-        if (!context) return;
-
-        let viewportScale = scale;
-        if (scale === 0) {
-          // Fit Width calculation
-          const containerWidth = containerRef.current?.clientWidth || 600;
-          const defaultViewport = page.getViewport({ scale: 1.0 });
-          viewportScale = (containerWidth - 40) / defaultViewport.width;
-        }
-
-        const viewport = page.getViewport({ scale: viewportScale });
-        
-        canvas.height = viewport.height;
-        canvas.width = viewport.width;
-
-        const renderContext = {
-          canvasContext: context,
-          viewport: viewport,
-        };
-
-        const renderTask = page.render(renderContext);
-        renderTaskRef.current = renderTask;
-
-        await renderTask.promise;
-        setRendering(false);
       } catch (err: any) {
         if (err.name !== "RenderingCancelledException") {
-          console.error("Page render error: ", err);
+          console.error("Multi-page rendering error: ", err);
+        }
+      } finally {
+        if (active) {
+          setRendering(false);
         }
       }
     };
 
-    renderPage();
-  }, [pdf, pageNumber, scale, isFullscreen]);
+    renderPages();
+    return () => {
+      active = false;
+      renderTasksRef.current.forEach(task => task?.cancel());
+    };
+  }, [pdf, numPages, scale]);
 
   // Zoom handlers
   const zoomIn = () => setScale(prev => (prev === 0 ? 1.2 : prev + 0.2));
   const zoomOut = () => setScale(prev => (prev === 0 ? 1.0 : Math.max(0.6, prev - 0.2)));
   const fitWidth = () => setScale(0);
 
-  // Paging handlers
-  const nextPage = () => setPageNumber(prev => Math.min(numPages, prev + 1));
-  const prevPage = () => setPageNumber(prev => Math.max(1, prev - 1));
+  // Scroll handler to track active page number dynamically
+  const handleScroll = () => {
+    if (!scrollContainerRef.current || numPages === 0) return;
+    const container = scrollContainerRef.current;
+    const scrollTop = container.scrollTop;
+    const containerHeight = container.clientHeight;
+
+    let currentPage = 1;
+    let accumulatedHeight = 0;
+
+    for (let i = 0; i < numPages; i++) {
+      const canvas = canvasRefs.current[i];
+      if (!canvas) continue;
+      accumulatedHeight += canvas.clientHeight + 16; // height + gap
+      if (scrollTop + containerHeight / 2 < accumulatedHeight) {
+        currentPage = i + 1;
+        break;
+      }
+    }
+    setPageNumber(currentPage);
+  };
+
+  // Paging navigation buttons smooth scrolling helper
+  const scrollToPage = (pageNum: number) => {
+    const canvas = canvasRefs.current[pageNum - 1];
+    if (canvas && scrollContainerRef.current) {
+      canvas.scrollIntoView({ behavior: "smooth", block: "start" });
+      setPageNumber(pageNum);
+    }
+  };
+
+  const nextPage = () => {
+    const targetPage = Math.min(numPages, pageNumber + 1);
+    scrollToPage(targetPage);
+  };
+
+  const prevPage = () => {
+    const targetPage = Math.max(1, pageNumber - 1);
+    scrollToPage(targetPage);
+  };
 
   // Fullscreen handlers
   const toggleFullscreen = () => {
@@ -153,11 +204,11 @@ export default function PDFViewer({ pdfUrl }: PDFViewerProps) {
   return (
     <div 
       ref={containerRef}
-      className={`flex flex-col bg-lightGray border border-border rounded-card overflow-hidden shadow-card-sm w-full ${
-        isFullscreen ? "h-screen p-4 bg-zinc-900" : "h-[620px]"
+      className={`flex flex-col bg-zinc-900 border border-border rounded-card overflow-hidden shadow-card-lg w-full ${
+        isFullscreen ? "h-screen p-4" : "h-[75vh]"
       }`}
     >
-      {/* Sticky Top Action Toolbar Bar */}
+      {/* Action Toolbar Bar */}
       <div className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-white border-b border-border ${
         isFullscreen ? "rounded-t-lg" : ""
       }`}>
@@ -247,11 +298,15 @@ export default function PDFViewer({ pdfUrl }: PDFViewerProps) {
       </div>
 
       {/* Rendering / Scroll Container Area */}
-      <div className="flex-1 overflow-auto p-4 flex items-start justify-center relative">
+      <div 
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-auto p-4 flex flex-col items-center gap-4 bg-zinc-800 relative scroll-smooth"
+      >
         {loading && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 z-20 gap-3">
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-900/80 z-20 gap-3">
             <Loader2 className="w-10 h-10 text-primary animate-spin" />
-            <span className="text-sm font-semibold text-secondaryText">Loading PDF Document...</span>
+            <span className="text-sm font-semibold text-white">Loading PDF Document...</span>
           </div>
         )}
 
@@ -269,13 +324,16 @@ export default function PDFViewer({ pdfUrl }: PDFViewerProps) {
           </div>
         )}
 
-        {!error && !loading && (
-          <div className={`transition-all duration-300 shadow-lg border border-border bg-white rounded-md overflow-hidden ${
-            rendering ? "opacity-60" : "opacity-100"
-          }`}>
-            <canvas ref={canvasRef} />
+        {!error && !loading && Array.from({ length: numPages }, (_, index) => (
+          <div 
+            key={index + 1} 
+            className={`transition-all duration-300 shadow-xl border border-zinc-700 bg-white rounded-md overflow-hidden ${
+              rendering ? "opacity-75" : "opacity-100"
+            }`}
+          >
+            <canvas ref={el => { canvasRefs.current[index] = el; }} />
           </div>
-        )}
+        ))}
       </div>
     </div>
   );

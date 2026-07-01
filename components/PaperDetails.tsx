@@ -213,10 +213,10 @@ export default function PaperDetails({ paperId, onClose, onPaperChange, allPaper
       </div>
 
       {/* 2. Main Two-Column Layout */}
-      <div className="flex flex-col lg:flex-row items-start gap-8 w-full mb-16">
+      <div className="flex flex-col lg:flex-row items-start gap-8 w-full mb-16 h-auto min-h-0">
         
         {/* Left Column Content (approx 68% width on desktop) */}
-        <div className="flex-grow lg:w-[68%] space-y-5 text-left w-full">
+        <div className="w-full lg:w-[68%] space-y-5 text-left h-auto min-h-0">
           
           {/* Metadata category and date badge row */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-secondaryText font-medium">
