@@ -19,7 +19,7 @@ export class PaperRepository {
     year?: number;
     ids?: string[];
   }): Promise<{ papers: any[]; totalCount: number }> {
-    checkDbStatus();
+    await checkDbStatus();
 
     const {
       category,
@@ -199,7 +199,7 @@ export class PaperRepository {
    * Retrieve a single paper by its ID.
    */
   static async getPaperById(id: string): Promise<any | null> {
-    checkDbStatus();
+    await checkDbStatus();
     const query = `
       SELECT p.*,
         p.citation_count AS citations,
@@ -224,7 +224,7 @@ export class PaperRepository {
    * Match research area, category, datasets, tasks, and methods.
    */
   static async getRelatedPapers(paper: any): Promise<any[]> {
-    checkDbStatus();
+    await checkDbStatus();
     const query = `
       SELECT p.*,
         p.citation_count AS citations,

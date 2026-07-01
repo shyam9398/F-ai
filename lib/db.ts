@@ -21,7 +21,12 @@ if (process.env.DATABASE_URL) {
 }
 
 // Prevent duplicate pool instances in Next.js hot-reload development environments
-const globalForDb = global as unknown as { pool: Pool | null; isDbReady: boolean; dbError: string | null };
+const globalForDb = global as unknown as {
+  pool: Pool | null;
+  isDbReady: boolean;
+  dbError: string | null;
+  initPromise: Promise<void> | null;
+};
 
 if (!globalForDb.pool && process.env.DATABASE_URL) {
   globalForDb.pool = new Pool({
@@ -29,9 +34,10 @@ if (!globalForDb.pool && process.env.DATABASE_URL) {
   });
   globalForDb.isDbReady = false;
   globalForDb.dbError = null;
+  globalForDb.initPromise = null;
 
   // Run connection test and table schema verification immediately on initialization
-  globalForDb.pool.query("SELECT 1;")
+  globalForDb.initPromise = globalForDb.pool.query("SELECT 1;")
     .then(async () => {
       console.log("✅ Connected to Neon PostgreSQL");
       
@@ -74,9 +80,12 @@ export const pool = globalForDb.pool || new Pool();
  * Validates that the database connection is established and the table schema exists.
  * Throws a detailed error if verification has failed to block API route execution.
  */
-export function checkDbStatus() {
+export async function checkDbStatus() {
   if (!process.env.DATABASE_URL) {
     throw new Error("DATABASE_URL is missing.");
+  }
+  if (globalForDb.initPromise) {
+    await globalForDb.initPromise;
   }
   if (!globalForDb.isDbReady) {
     throw new Error(globalForDb.dbError || "Database connection is not initialized or the papers table is missing.");
