@@ -12,6 +12,8 @@ export async function GET(request: NextRequest) {
     const idsParam = searchParams.get("ids");
     const ids = idsParam ? idsParam.split(",").map(id => id.trim()).filter(Boolean) : undefined;
 
+    const task = searchParams.get("task") || undefined;
+
     // Fetch filters, page, and pagination count directly from DB via repository
     const { papers, totalCount } = await PaperRepository.getPapers({
       category,
@@ -20,10 +22,11 @@ export async function GET(request: NextRequest) {
       page,
       limit,
       ids,
+      task,
     });
 
-    const methods = await PaperRepository.getAllMethods();
-    const totalPapersCount = await PaperRepository.getTotalPapersCount();
+    const methods = await PaperRepository.getAllMethods(task);
+    const totalPapersCount = await PaperRepository.getTotalPapersCount(task);
 
     return NextResponse.json({
       papers,

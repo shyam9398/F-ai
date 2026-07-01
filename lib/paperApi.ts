@@ -141,7 +141,8 @@ export async function getPapers(
   limit: number = 50,
   sort?: string,
   search?: string,
-  ids?: string[]
+  ids?: string[],
+  task?: string
 ): Promise<{ 
   papers: Paper[]; 
   totalCount: number; 
@@ -155,6 +156,7 @@ export async function getPapers(
   if (sort) url += `sort=${encodeURIComponent(sort)}&`;
   if (search) url += `search=${encodeURIComponent(search)}&`;
   if (ids && ids.length > 0) url += `ids=${encodeURIComponent(ids.join(","))}&`;
+  if (task) url += `task=${encodeURIComponent(task)}&`;
 
   const res = await fetch(url);
   if (!res.ok) throw new Error("Failed to fetch papers from API");
