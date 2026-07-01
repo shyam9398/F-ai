@@ -134,7 +134,7 @@ export default function Home() {
             </header>
 
             <section className="mb-1">
-              <MethodHero />
+              <MethodHero activeCategory={activeCategory} />
             </section>
 
             {/* Navigation Tabs (Feed / Saved / Bookmarks) */}

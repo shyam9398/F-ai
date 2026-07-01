@@ -22,7 +22,10 @@ export async function GET(request: NextRequest) {
       ids,
     });
 
-    return NextResponse.json(papers, {
+    return NextResponse.json({
+      papers,
+      totalCount,
+    }, {
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",

@@ -154,7 +154,8 @@ export async function getPapers(
   const res = await fetch(url);
   if (!res.ok) throw new Error("Failed to fetch papers from API");
   const data = await res.json();
-  return data.map(mapToAnkitPaper);
+  const papersArray = Array.isArray(data) ? data : (data.papers || []);
+  return papersArray.map(mapToAnkitPaper);
 }
 
 /**

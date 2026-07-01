@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import MethodStats from "./MethodStats";
 import MethodIllustration from "./MethodIllustration";
 
-export default function MethodHero() {
+export default function MethodHero({ activeCategory }: { activeCategory?: string }) {
   return (
     <div className="flex flex-col lg:flex-row items-center justify-between gap-8 lg:gap-16 py-3 select-none">
       {/* Left side (60% width) */}
@@ -35,7 +35,7 @@ export default function MethodHero() {
           A large language model (LLM) is an advanced artificial intelligence (AI) system that learns to understand, generate, and process human language by being trained on vast amounts of text data.
         </p>
         
-        <MethodStats />
+        <MethodStats activeCategory={activeCategory} />
       </motion.div>
       
       {/* Right side (40% width) */}

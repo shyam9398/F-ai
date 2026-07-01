@@ -8,24 +8,22 @@ try {
   // Ignored if loader is not available
 }
 
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL is missing.");
-}
-
-// Log database connection details securely without exposing the password
-try {
-  const url = new URL(process.env.DATABASE_URL);
-  console.log(`Host: ${url.hostname}`);
-  console.log(`User: ${url.username}`);
-  console.log(`Database: ${url.pathname.substring(1)}`);
-} catch (e) {
-  console.error("❌ DATABASE_URL is not a valid connection URL.");
+// Log database connection details securely without exposing the password if defined
+if (process.env.DATABASE_URL) {
+  try {
+    const url = new URL(process.env.DATABASE_URL);
+    console.log(`Host: ${url.hostname}`);
+    console.log(`User: ${url.username}`);
+    console.log(`Database: ${url.pathname.substring(1)}`);
+  } catch (e) {
+    console.error("❌ DATABASE_URL is not a valid connection URL.");
+  }
 }
 
 // Prevent duplicate pool instances in Next.js hot-reload development environments
-const globalForDb = global as unknown as { pool: Pool; isDbReady: boolean; dbError: string | null };
+const globalForDb = global as unknown as { pool: Pool | null; isDbReady: boolean; dbError: string | null };
 
-if (!globalForDb.pool) {
+if (!globalForDb.pool && process.env.DATABASE_URL) {
   globalForDb.pool = new Pool({
     connectionString: process.env.DATABASE_URL,
   });
@@ -39,7 +37,7 @@ if (!globalForDb.pool) {
       
       try {
         // Query to check if the 'papers' table exists in the public schema
-        const tableCheck = await globalForDb.pool.query(
+        const tableCheck = await globalForDb.pool!.query(
           "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'papers');"
         );
         const exists = tableCheck.rows[0].exists;
@@ -69,13 +67,17 @@ if (!globalForDb.pool) {
     });
 }
 
-export const pool = globalForDb.pool;
+// Export the pool. If it's missing during build compilation, create a dummy pool so import succeeds.
+export const pool = globalForDb.pool || new Pool();
 
 /**
  * Validates that the database connection is established and the table schema exists.
  * Throws a detailed error if verification has failed to block API route execution.
  */
 export function checkDbStatus() {
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL is missing.");
+  }
   if (!globalForDb.isDbReady) {
     throw new Error(globalForDb.dbError || "Database connection is not initialized or the papers table is missing.");
   }

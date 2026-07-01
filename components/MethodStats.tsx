@@ -4,16 +4,20 @@ import { useEffect, useState } from "react";
 import { FileText } from "lucide-react";
 import { motion } from "framer-motion";
 
-export default function MethodStats() {
+export default function MethodStats({ activeCategory }: { activeCategory?: string }) {
   const [totalCount, setTotalCount] = useState<number | null>(null);
 
   useEffect(() => {
     async function fetchCount() {
       try {
-        const res = await fetch("/api/papers");
+        const url = activeCategory && activeCategory !== "All Methods"
+          ? `/api/papers?method=${encodeURIComponent(activeCategory)}&limit=1`
+          : "/api/papers?limit=1";
+        const res = await fetch(url);
         if (res.ok) {
           const data = await res.json();
-          setTotalCount(Array.isArray(data) ? data.length : 0);
+          const count = typeof data.totalCount === "number" ? data.totalCount : (Array.isArray(data) ? data.length : 0);
+          setTotalCount(count);
         } else {
           setTotalCount(0);
         }
@@ -23,7 +27,7 @@ export default function MethodStats() {
       }
     }
     fetchCount();
-  }, []);
+  }, [activeCategory]);
 
   return (
     <motion.div
