@@ -42,15 +42,12 @@ export interface Paper {
 }
 
 export function mapToAnkitPaper(p: any): Paper {
-  const citationsVal = typeof p.citations === "number" ? p.citations : parseInt(p.citations) || 0;
+  const starsVal = p.github_stars !== undefined && p.github_stars !== null ? parseInt(p.github_stars) : 0;
+  const forksVal = p.github_forks !== undefined && p.github_forks !== null ? parseInt(p.github_forks) : 0;
+  const citationsVal = p.citation_count !== undefined && p.citation_count !== null ? parseInt(p.citation_count) : 0;
   
-  // Format repo name / star count from github_url / github_stars
-  let repoName = "0";
-  if (p.github_stars !== undefined && p.github_stars !== null) {
-    repoName = String(p.github_stars);
-  } else if (p.repo) {
-    repoName = String(p.repo);
-  }
+  // Format repo name / star count from github_url / github_forks
+  let repoName = String(forksVal);
 
   // Format sota from benchmarks/results
   let sotaVal = "";
@@ -99,7 +96,7 @@ export function mapToAnkitPaper(p: any): Paper {
     tags: p.tags || [],
     additionalTags: p.methods || p.additionalTags || [],
     thumbnail: p.thumbnail_url || p.thumbnail || "",
-    upvotes: citationsVal.toString(),
+    upvotes: starsVal.toString(),
     repo: repoName,
     citations: citationsVal,
     // Add extra properties for search/sort
@@ -141,7 +138,8 @@ export async function getPapers(
   limit: number = 50,
   sort?: string,
   search?: string,
-  ids?: string[]
+  ids?: string[],
+  task?: string
 ): Promise<{ 
   papers: Paper[]; 
   totalCount: number; 
@@ -155,6 +153,7 @@ export async function getPapers(
   if (sort) url += `sort=${encodeURIComponent(sort)}&`;
   if (search) url += `search=${encodeURIComponent(search)}&`;
   if (ids && ids.length > 0) url += `ids=${encodeURIComponent(ids.join(","))}&`;
+  if (task) url += `task=${encodeURIComponent(task)}&`;
 
   const res = await fetch(url);
   if (!res.ok) throw new Error("Failed to fetch papers from API");

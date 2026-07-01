@@ -260,8 +260,26 @@ export class PaperRepository {
   /**
    * Retrieve all methods from the database with their respective paper count.
    */
-  static async getAllMethods(): Promise<any[]> {
+  static async getAllMethods(task?: string): Promise<any[]> {
     await checkDbStatus();
+    if (task) {
+      const result = await pool.query(`
+        SELECT 
+          m.id, 
+          m.name, 
+          m.slug, 
+          COUNT(DISTINCT CASE WHEN pt.paper_id IS NOT NULL THEN pm.paper_id END)::integer AS paper_count
+        FROM methods m
+        LEFT JOIN paper_methods pm ON m.id = pm.method_id
+        LEFT JOIN paper_tasks pt ON pm.paper_id = pt.paper_id AND pt.task_id IN (
+          SELECT id FROM tasks WHERE name = $1 OR slug = $2
+        )
+        GROUP BY m.id, m.name, m.slug
+        ORDER BY m.name;
+      `, [task, task.toLowerCase().replace(/\s+/g, "-")]);
+      return result.rows;
+    }
+
     const result = await pool.query(`
       SELECT 
         m.id, 
@@ -277,10 +295,19 @@ export class PaperRepository {
   }
 
   /**
-   * Retrieve total unfiltered count of papers in the database.
+   * Retrieve total count of papers in the database, optionally filtered by task.
    */
-  static async getTotalPapersCount(): Promise<number> {
+  static async getTotalPapersCount(task?: string): Promise<number> {
     await checkDbStatus();
+    if (task) {
+      const result = await pool.query(`
+        SELECT COUNT(DISTINCT pt.paper_id)::integer AS count 
+        FROM paper_tasks pt
+        JOIN tasks t ON pt.task_id = t.id
+        WHERE t.name = $1 OR t.slug = $2;
+      `, [task, task.toLowerCase().replace(/\s+/g, "-")]);
+      return result.rows[0].count;
+    }
     const result = await pool.query("SELECT COUNT(*)::integer AS count FROM papers;");
     return result.rows[0].count;
   }
