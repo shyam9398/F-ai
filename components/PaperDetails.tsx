@@ -174,7 +174,7 @@ export default function PaperDetails({ paperId, onClose, onPaperChange, allPaper
   return (
     <div className="w-full flex flex-col bg-white border border-border rounded-card p-6 md:p-8 shadow-card-sm select-none">
       {/* 1. Header Navigation Bar */}
-      <div className="flex items-center justify-between border-b border-border pb-4 mb-6 sticky top-[72px] bg-white z-20">
+      <div className="flex items-center justify-between border-b border-border pb-4 mb-6 bg-white">
         <button 
           onClick={onClose}
           className="flex items-center gap-2 text-sm font-semibold text-secondaryText hover:text-primary transition-colors cursor-pointer group"
@@ -209,7 +209,7 @@ export default function PaperDetails({ paperId, onClose, onPaperChange, allPaper
       <div className="flex flex-col xl:flex-row items-start gap-8 w-full mb-16">
         
         {/* Left Column Content */}
-        <div className="flex-grow xl:max-w-[68%] space-y-8 text-left w-full">
+        <div className="flex-grow xl:max-w-[68%] space-y-5 text-left w-full">
           
           {/* Metadata category and date badge row */}
           <div className="flex flex-wrap items-center gap-3">
@@ -223,7 +223,7 @@ export default function PaperDetails({ paperId, onClose, onPaperChange, allPaper
           </div>
 
           {/* Title */}
-          <h1 className="text-3xl md:text-[38px] font-black text-textDark leading-tight tracking-tight">
+          <h1 className="text-[22px] md:text-[28px] font-extrabold text-textDark leading-snug tracking-tight max-w-[800px]">
             {paper.title}
           </h1>
 
@@ -441,22 +441,9 @@ export default function PaperDetails({ paperId, onClose, onPaperChange, allPaper
             <PDFViewer pdfUrl={paper.pdf_url || ""} />
           </div>
 
-          {/* Paper Stats Sidebar card with object-contain thumbnail */}
-          <div className="bg-white border border-border rounded-card p-5 shadow-card-sm text-left flex flex-col items-center gap-4">
-            <div className="w-full max-w-[150px] h-[190px] relative border border-border rounded-lg bg-gray-50 flex items-center justify-center p-2 overflow-hidden shadow-xs">
-              {displayThumbnail ? (
-                <img
-                  src={displayThumbnail}
-                  alt={`${paper.title} sidebar preview`}
-                  className="w-full h-full object-contain object-center"
-                />
-              ) : (
-                <div className="w-full h-full animate-pulse bg-gray-100 flex items-center justify-center text-[10px] text-gray-400 font-bold">
-                  Loading Thumbnail...
-                </div>
-              )}
-            </div>
-            <div className="w-full border-t border-border pt-4 text-xs font-semibold text-secondaryText space-y-1.5">
+          {/* Paper Stats Sidebar card (without duplicate thumbnail) */}
+          <div className="bg-white border border-border rounded-card p-5 shadow-card-sm text-left flex flex-col gap-4">
+            <div className="w-full text-xs font-semibold text-secondaryText space-y-1.5">
               <div>Pages: <span className="text-textDark font-bold">{paper.pages} Pages</span></div>
               <div>Size: <span className="text-textDark font-bold">{paper.file_size}</span></div>
               <div>Pub Date: <span className="text-textDark font-bold">{paper.year}</span></div>
