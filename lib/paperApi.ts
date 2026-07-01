@@ -65,12 +65,36 @@ export function mapToAnkitPaper(p: any): Paper {
       .join(" • ");
   }
 
+  // Format publication date string
+  let dateVal = "";
+  if (p.publication_date) {
+    try {
+      dateVal = new Date(p.publication_date).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    } catch (e) {
+      dateVal = String(p.publication_date);
+    }
+  } else {
+    dateVal = String(p.year || "");
+  }
+
+  // Map database array columns to front-end string fields where required
+  const modelsStr = Array.isArray(p.models)
+    ? p.models.join(", ")
+    : p.models_used || "";
+  const datasetsStr = Array.isArray(p.datasets)
+    ? p.datasets.join(", ")
+    : p.datasets_used || "";
+
   return {
     id: String(p.id),
     title: p.title || "",
     authors: p.authors || "",
     description: p.abstract || p.description || "",
-    date: p.publication_date || p.date || String(p.year || ""),
+    date: dateVal,
     sota: sotaVal,
     tags: p.tags || [],
     additionalTags: p.methods || p.additionalTags || [],
@@ -92,15 +116,15 @@ export function mapToAnkitPaper(p: any): Paper {
     pages: p.pages || 0,
     file_size: p.file_size || "",
     doi: p.doi || "",
-    models_used: p.models_used || "",
-    datasets_used: p.datasets_used || "",
+    models_used: modelsStr,
+    datasets_used: datasetsStr,
     framework: p.framework || "",
     language: p.language || "",
     tasks: p.tasks || [],
     conference: p.conference || "",
     journal: p.journal || "",
     project_url: p.project_url || "",
-    publication_date: p.publication_date || "",
+    publication_date: dateVal,
     reading_time: p.reading_time || "",
     methods: p.methods || [],
     benchmarks: p.benchmarks || [],
@@ -108,12 +132,16 @@ export function mapToAnkitPaper(p: any): Paper {
   };
 }
 
+/**
+ * Fetch papers from our database-backed endpoint.
+ */
 export async function getPapers(
   method?: string,
   page: number = 1,
   limit: number = 50,
   sort?: string,
-  search?: string
+  search?: string,
+  ids?: string[]
 ): Promise<Paper[]> {
   let url = "/api/papers?";
   if (method) url += `method=${encodeURIComponent(method)}&`;
@@ -121,9 +149,28 @@ export async function getPapers(
   if (limit) url += `limit=${limit}&`;
   if (sort) url += `sort=${encodeURIComponent(sort)}&`;
   if (search) url += `search=${encodeURIComponent(search)}&`;
+  if (ids && ids.length > 0) url += `ids=${encodeURIComponent(ids.join(","))}&`;
 
   const res = await fetch(url);
   if (!res.ok) throw new Error("Failed to fetch papers from API");
   const data = await res.json();
   return data.map(mapToAnkitPaper);
+}
+
+/**
+ * Fetch a single paper's full details and related papers from the database.
+ */
+export async function getPaperDetails(id: string): Promise<{ paper: Paper; relatedPapers: Paper[] }> {
+  const res = await fetch(`/api/papers/${id}`);
+  if (!res.ok) {
+    if (res.status === 404) {
+      throw new Error(`Paper not found: ${id}`);
+    }
+    throw new Error("Failed to fetch paper details");
+  }
+  const data = await res.json();
+  return {
+    paper: mapToAnkitPaper(data.paper),
+    relatedPapers: (data.relatedPapers || []).map(mapToAnkitPaper),
+  };
 }

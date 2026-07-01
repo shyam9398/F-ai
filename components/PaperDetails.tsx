@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   ArrowLeft, Globe, Code, Layers, Bookmark, Star, 
   ChevronLeft, ChevronRight, BookOpen, Clock, FileCode,
@@ -10,45 +10,141 @@ import Image from "next/image";
 import PDFViewer from "./PDFViewer";
 import CodeRepoCard from "./CodeRepoCard";
 import PlatformMapping from "./PlatformMapping";
-import { Paper } from "../lib/paperApi";
+import { Paper, mapToAnkitPaper } from "../lib/paperApi";
 import { usePDFThumbnail } from "../hooks/usePDFThumbnail";
 
 interface PaperDetailsProps {
-  paper: Paper;
+  paperId: string;
   onClose: () => void;
   onPaperChange: (id: string) => void;
   allPapers: Paper[];
 }
 
-export default function PaperDetails({ paper, onClose, onPaperChange, allPapers }: PaperDetailsProps) {
+export default function PaperDetails({ paperId, onClose, onPaperChange, allPapers }: PaperDetailsProps) {
+  const [paper, setPaper] = useState<Paper | null>(null);
+  const [relatedPapers, setRelatedPapers] = useState<Paper[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [isAbstractExpanded, setIsAbstractExpanded] = useState(false);
   const [copiedBib, setCopiedBib] = useState(false);
   const [copiedAPA, setCopiedAPA] = useState(false);
-  const { thumbnail } = usePDFThumbnail(paper.pdf_url);
 
-  // Find index for Previous/Next navigation
-  const currentIndex = allPapers.findIndex((p) => p.id === paper.id);
+  // Saved / Bookmark local storage state
+  const [isSaved, setIsSaved] = useState(false);
+  const [isBookmarked, setIsBookmarked] = useState(false);
+
+  // Fallback PDF thumbnail generator hook
+  const { thumbnail: generatedThumbnail } = usePDFThumbnail(
+    paper?.thumbnail_url || paper?.thumbnail ? "" : paper?.pdf_url || ""
+  );
+
+  const displayThumbnail = paper?.thumbnail_url || paper?.thumbnail || generatedThumbnail;
+
+  useEffect(() => {
+    let active = true;
+    async function loadPaperData() {
+      try {
+        setLoading(true);
+        setError(null);
+        const res = await fetch(`/api/papers/${paperId}`);
+        if (!res.ok) {
+          throw new Error(`Failed to retrieve paper details: ${res.statusText}`);
+        }
+        const data = await res.json();
+        
+        if (active) {
+          setPaper(mapToAnkitPaper(data.paper));
+          setRelatedPapers((data.relatedPapers || []).map(mapToAnkitPaper));
+
+          // Load local storage states
+          const saved = JSON.parse(localStorage.getItem("frontier_saved_papers") || "[]");
+          const bookmarked = JSON.parse(localStorage.getItem("frontier_bookmarked_papers") || "[]");
+          setIsSaved(saved.includes(paperId));
+          setIsBookmarked(bookmarked.includes(paperId));
+        }
+      } catch (err: any) {
+        if (active) {
+          setError(err.message || "Failed to load paper details from the database.");
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+    loadPaperData();
+    return () => {
+      active = false;
+    };
+  }, [paperId]);
+
+  // Handle previous and next buttons using the main list context
+  const currentIndex = allPapers.findIndex((p) => p.id === paperId);
   const prevPaper = currentIndex > 0 ? allPapers[currentIndex - 1] : null;
   const nextPaper = currentIndex < allPapers.length - 1 ? allPapers[currentIndex + 1] : null;
 
-  // Filter related papers based on category or research area
-  const relatedPapers = allPapers
-    .filter((p) => p.id !== paper.id && (p.category === paper.category || p.research_area === paper.research_area))
-    .slice(0, 6);
+  if (loading) {
+    return (
+      <div className="w-full flex flex-col items-center justify-center p-24 bg-white border border-border rounded-card shadow-card-sm min-h-[400px]">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mb-4"></div>
+        <span className="text-sm font-bold text-secondaryText">Querying database for paper details...</span>
+      </div>
+    );
+  }
 
-  // Abstract text processing for Read More / Read Less (large preview setting: ~600 chars)
+  if (error || !paper) {
+    return (
+      <div className="w-full flex flex-col items-center justify-center p-24 bg-white border border-border rounded-card shadow-card-sm text-center min-h-[400px]">
+        <span className="text-base font-bold text-red-600 mb-1.5">Database Retrieve Failed</span>
+        <span className="text-sm text-red-400 max-w-[400px] mb-6 leading-relaxed font-semibold">{error || "Paper details not found."}</span>
+        <button
+          onClick={onClose}
+          className="px-6 py-2.5 bg-primary hover:bg-primaryHover text-white text-xs font-bold uppercase tracking-wider rounded-[10px] cursor-pointer transition-colors shadow-xs"
+        >
+          Back to feed
+        </button>
+      </div>
+    );
+  }
+
+  // localStorage Toggles
+  const handleToggleSave = () => {
+    const saved = JSON.parse(localStorage.getItem("frontier_saved_papers") || "[]");
+    let updated: string[];
+    if (saved.includes(paperId)) {
+      updated = saved.filter((id: string) => id !== paperId);
+      setIsSaved(false);
+    } else {
+      updated = [...saved, paperId];
+      setIsSaved(true);
+    }
+    localStorage.setItem("frontier_saved_papers", JSON.stringify(updated));
+  };
+
+  const handleToggleBookmark = () => {
+    const bookmarked = JSON.parse(localStorage.getItem("frontier_bookmarked_papers") || "[]");
+    let updated: string[];
+    if (bookmarked.includes(paperId)) {
+      updated = bookmarked.filter((id: string) => id !== paperId);
+      setIsBookmarked(false);
+    } else {
+      updated = [...bookmarked, paperId];
+      setIsBookmarked(true);
+    }
+    localStorage.setItem("frontier_bookmarked_papers", JSON.stringify(updated));
+  };
+
   const isLongAbstract = paper.abstract.length > 600;
   const truncatedAbstract = paper.abstract.slice(0, 600) + "...";
   const displayAbstract = isAbstractExpanded || !isLongAbstract ? paper.abstract : truncatedAbstract;
 
-  // Generate APA Citation format
   const getAPACitation = () => {
     const firstAuthor = paper.authors.split(",")[0];
     const rest = paper.authors.split(",").length > 1 ? " et al." : "";
     return `${firstAuthor}${rest} (${paper.year}). ${paper.title}. Published in ${paper.conference || paper.journal || "arXiv preprint"}.`;
   };
 
-  // Generate BibTeX Citation format
   const getBibtexCitation = () => {
     const cleanKey = paper.title.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 12);
     const authorList = paper.authors.replace(/,/g, " and");
@@ -109,11 +205,11 @@ export default function PaperDetails({ paper, onClose, onPaperChange, allPapers 
         </div>
       </div>
 
-      {/* 2. Main Page Layout (Two Columns: ~70% Left, ~30% Right) */}
+      {/* 2. Main Page Layout (Two Columns: ~60% Left, ~40% Right) */}
       <div className="flex flex-col xl:flex-row items-start gap-8 w-full mb-16">
         
         {/* Left Column Content */}
-        <div className="flex-1 xl:max-w-[68%] space-y-8 text-left">
+        <div className="flex-grow xl:max-w-[68%] space-y-8 text-left w-full">
           
           {/* Metadata category and date badge row */}
           <div className="flex flex-wrap items-center gap-3">
@@ -139,49 +235,52 @@ export default function PaperDetails({ paper, onClose, onPaperChange, allPapers 
           {/* Info stats row */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs font-bold text-secondaryText border-b border-border pb-6 w-full">
             <span>• {paper.citations.toLocaleString()} citations</span>
-            <span>• Source: <span className="text-primary font-extrabold">{paper.conference || paper.journal}</span></span>
-            <span className="flex items-center gap-1">
-              <span>• ⏱ {paper.reading_time}</span>
-            </span>
+            <span>• Source: <span className="text-primary font-extrabold">{paper.conference || paper.journal || "Publication"}</span></span>
+            {paper.reading_time && (
+              <span className="flex items-center gap-1">
+                <span>• ⏱ {paper.reading_time}</span>
+              </span>
+            )}
           </div>
 
           {/* Action buttons bar */}
           <div className="flex flex-wrap gap-2.5">
-            <a 
-              href={paper.project_url} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-primaryHover text-white font-bold text-xs uppercase tracking-wider rounded-[10px] shadow-xs transition-colors cursor-pointer"
-            >
-              <Globe className="w-4 h-4" />
-              <span>Source Paper</span>
-            </a>
-            
-            {paper.github_url && (
+            {paper.project_url && (
               <a 
-                href={paper.github_url} 
-                target="_blank" 
+                href={paper.project_url}
+                target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 px-4 py-2.5 bg-white border border-border hover:bg-lightGray text-textDark font-bold text-xs uppercase tracking-wider rounded-[10px] transition-colors cursor-pointer"
               >
-                <Code className="w-4 h-4 text-gray-500" />
-                <span>Code Repository</span>
+                <Globe className="w-4 h-4 text-gray-500" />
+                <span>Project Page</span>
               </a>
             )}
 
-            <button className="flex items-center gap-2 px-4 py-2.5 bg-white border border-border hover:bg-lightGray text-textDark font-bold text-xs uppercase tracking-wider rounded-[10px] transition-colors cursor-pointer">
-              <Layers className="w-4 h-4 text-gray-500" />
-              <span>Project Page</span>
+            {/* Fully functional Save button */}
+            <button 
+              onClick={handleToggleSave}
+              className={`flex items-center gap-2 px-4 py-2.5 border rounded-[10px] font-bold text-xs uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+                isSaved 
+                  ? "bg-[#FFF3EE] text-[#FF6A3D] border-[#FF6A3D] shadow-xs" 
+                  : "bg-white border-border hover:bg-lightGray text-textDark"
+              }`}
+            >
+              <Bookmark className={`w-4 h-4 ${isSaved ? "text-[#FF6A3D] fill-[#FF6A3D]" : "text-gray-500"}`} />
+              <span>{isSaved ? "Saved" : "Save"}</span>
             </button>
 
-            <button className="flex items-center gap-2 px-4 py-2.5 bg-white border border-border hover:bg-lightGray text-textDark font-bold text-xs uppercase tracking-wider rounded-[10px] transition-colors cursor-pointer">
-              <Bookmark className="w-4 h-4 text-gray-500" />
-              <span>Save</span>
-            </button>
-
-            <button className="flex items-center gap-2 px-4 py-2.5 bg-white border border-border hover:bg-lightGray text-textDark font-bold text-xs uppercase tracking-wider rounded-[10px] transition-colors cursor-pointer">
-              <Star className="w-4 h-4 text-gray-500" />
-              <span>Add Bookmark</span>
+            {/* Fully functional Bookmark button */}
+            <button 
+              onClick={handleToggleBookmark}
+              className={`flex items-center gap-2 px-4 py-2.5 border rounded-[10px] font-bold text-xs uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+                isBookmarked 
+                  ? "bg-yellow-50 text-yellow-600 border-yellow-400 shadow-xs" 
+                  : "bg-white border-border hover:bg-lightGray text-textDark"
+              }`}
+            >
+              <Star className={`w-4 h-4 ${isBookmarked ? "text-yellow-500 fill-yellow-500" : "text-gray-500"}`} />
+              <span>{isBookmarked ? "Bookmarked" : "Add Bookmark"}</span>
             </button>
           </div>
 
@@ -194,9 +293,9 @@ export default function PaperDetails({ paper, onClose, onPaperChange, allPapers 
               {displayAbstract}
             </p>
             {isLongAbstract && (
-              <button
+              <button 
                 onClick={() => setIsAbstractExpanded(!isAbstractExpanded)}
-                className="text-xs font-extrabold text-primary hover:underline cursor-pointer"
+                className="text-xs font-bold text-primary hover:underline cursor-pointer focus:outline-hidden"
               >
                 {isAbstractExpanded ? "Read Less" : "Read Full Abstract"}
               </button>
@@ -204,38 +303,42 @@ export default function PaperDetails({ paper, onClose, onPaperChange, allPapers 
           </div>
 
           {/* Tasks Mapped Section */}
-          <div className="space-y-3 pt-6 border-t border-border">
-            <h3 className="text-xs font-black text-secondaryText uppercase tracking-widest">
-              TASKS MAPPED
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {paper.tasks.map((task: string) => (
-                <span 
-                  key={task} 
-                  className="px-3 py-1 bg-[#F9FAFB] border border-border text-textDark font-semibold text-xs rounded-lg uppercase tracking-wider"
-                >
-                  {task}
-                </span>
-              ))}
+          {paper.tasks && paper.tasks.length > 0 && (
+            <div className="space-y-3 pt-6 border-t border-border">
+              <h3 className="text-xs font-black text-secondaryText uppercase tracking-widest">
+                TASKS MAPPED
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {paper.tasks.map((task: string) => (
+                  <span 
+                    key={task} 
+                    className="px-3 py-1 bg-[#F9FAFB] border border-border text-textDark font-semibold text-xs rounded-lg uppercase tracking-wider"
+                  >
+                    {task}
+                  </span>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Methods Mapped Section */}
-          <div className="space-y-3 pt-6 border-t border-border">
-            <h3 className="text-xs font-black text-secondaryText uppercase tracking-widest">
-              METHODS USED
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {paper.methods && paper.methods.map((method: string) => (
-                <span 
-                  key={method} 
-                  className="px-3 py-1 bg-lightOrange/30 border border-softOrangeBorder text-textOrangeAccent font-semibold text-xs rounded-lg uppercase tracking-wider"
-                >
-                  {method}
-                </span>
-              ))}
+          {paper.methods && paper.methods.length > 0 && (
+            <div className="space-y-3 pt-6 border-t border-border">
+              <h3 className="text-xs font-black text-secondaryText uppercase tracking-widest">
+                METHODS USED
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {paper.methods.map((method: string) => (
+                  <span 
+                    key={method} 
+                    className="px-3 py-1 bg-lightOrange/30 border border-softOrangeBorder text-textOrangeAccent font-semibold text-xs rounded-lg uppercase tracking-wider"
+                  >
+                    {method}
+                  </span>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Benchmarks & Results Section */}
           {paper.benchmarks && paper.benchmarks.length > 0 && (
@@ -338,12 +441,12 @@ export default function PaperDetails({ paper, onClose, onPaperChange, allPapers 
             <PDFViewer pdfUrl={paper.pdf_url || ""} />
           </div>
 
-          {/* Paper Stats Sidebar card with object-contain thumbnail (no crop, no stretch) */}
+          {/* Paper Stats Sidebar card with object-contain thumbnail */}
           <div className="bg-white border border-border rounded-card p-5 shadow-card-sm text-left flex flex-col items-center gap-4">
             <div className="w-full max-w-[150px] h-[190px] relative border border-border rounded-lg bg-gray-50 flex items-center justify-center p-2 overflow-hidden shadow-xs">
-              {thumbnail ? (
+              {displayThumbnail ? (
                 <img
-                  src={thumbnail}
+                  src={displayThumbnail}
                   alt={`${paper.title} sidebar preview`}
                   className="w-full h-full object-contain object-center"
                 />
@@ -357,7 +460,9 @@ export default function PaperDetails({ paper, onClose, onPaperChange, allPapers 
               <div>Pages: <span className="text-textDark font-bold">{paper.pages} Pages</span></div>
               <div>Size: <span className="text-textDark font-bold">{paper.file_size}</span></div>
               <div>Pub Date: <span className="text-textDark font-bold">{paper.year}</span></div>
-              <div>DOI: <a href={`https://doi.org/${paper.doi}`} target="_blank" rel="noopener noreferrer" className="text-primary font-bold hover:underline break-all">{paper.doi}</a></div>
+              {paper.doi && (
+                <div>DOI: <a href={`https://doi.org/${paper.doi}`} target="_blank" rel="noopener noreferrer" className="text-primary font-bold hover:underline break-all">{paper.doi}</a></div>
+              )}
             </div>
           </div>
 
@@ -392,16 +497,20 @@ export default function PaperDetails({ paper, onClose, onPaperChange, allPapers 
                 className="group p-5 border border-border hover:border-primary hover:shadow-card-lg hover:-translate-y-[2px] rounded-card transition-all duration-300 cursor-pointer flex gap-4 bg-white md:h-[135px] overflow-hidden"
               >
                 <div className="w-[60px] h-[78px] relative border border-border rounded-md overflow-hidden bg-gray-50 flex items-center justify-center shrink-0">
-                  <Image
-                    src={rp.thumbnail_url}
-                    alt={rp.title}
-                    width={60}
-                    height={78}
-                    className="w-full h-full object-contain p-1"
-                    unoptimized
-                  />
+                  {rp.thumbnail_url || rp.thumbnail ? (
+                    <Image
+                      src={rp.thumbnail_url || rp.thumbnail}
+                      alt={rp.title}
+                      width={60}
+                      height={78}
+                      className="w-full h-full object-contain p-1"
+                      unoptimized
+                    />
+                  ) : (
+                    <div className="text-[8px] text-gray-400 font-mono text-center px-1">Generating...</div>
+                  )}
                 </div>
-                <div className="flex flex-col justify-between min-w-0 py-0.5">
+                <div className="flex flex-col justify-between min-w-0 py-0.5 w-full">
                   <div>
                     <h4 className="text-sm font-bold text-textDark group-hover:text-primary transition-colors leading-snug line-clamp-2">
                       {rp.title}

@@ -3,6 +3,7 @@
 import { MessageCircle } from "lucide-react";
 import { type Paper } from "@/lib/paperApi";
 import Image from "next/image";
+import { usePDFThumbnail } from "../hooks/usePDFThumbnail";
 
 /* ─── Custom Github SVG Component ────────────────────────────────────────── */
 function Github({ size = 13, className = "" }: { size?: number; className?: string }) {
@@ -110,12 +111,15 @@ function SotaDisplay({ sota }: { sota: string }) {
 }
 
 /* ─── Thumbnail ──────────────────────────────────────────────────────────── */
-function PaperThumbnail({ title, thumbnail }: { title: string; thumbnail: string }) {
+function PaperThumbnail({ title, thumbnail, pdfUrl }: { title: string; thumbnail: string; pdfUrl: string }) {
+  const { thumbnail: generatedThumbnail } = usePDFThumbnail(thumbnail ? "" : pdfUrl);
+  const displayThumbnail = thumbnail || generatedThumbnail;
+
   return (
     <div className="w-full xl:w-[170px] h-[180px] sm:h-[220px] xl:h-[240px] shrink-0 border border-[#E5E5E0] rounded-md xl:rounded-none bg-[#F8F7F2] overflow-hidden shadow-[0_1px_4px_rgba(0,0,0,0.07)] relative flex items-center justify-center">
-      {thumbnail ? (
+      {displayThumbnail ? (
         <Image
-          src={thumbnail}
+          src={displayThumbnail}
           alt={title || "Paper thumbnail"}
           fill
           className="object-cover object-top"
@@ -123,7 +127,7 @@ function PaperThumbnail({ title, thumbnail }: { title: string; thumbnail: string
           unoptimized
         />
       ) : (
-        <div className="text-[#8B8B8B] text-[10px] font-mono px-4 text-center">No Cover</div>
+        <div className="text-[#8B8B8B] text-[10px] font-mono px-4 text-center">Generating...</div>
       )}
     </div>
   );
@@ -163,7 +167,7 @@ export function PaperCard({ paper }: { paper: Paper }) {
     <div className="group flex flex-col xl:flex-row gap-4 xl:gap-6 p-4 xl:py-6 xl:px-6 border xl:border-x-0 xl:border-t-0 border-[#E5E5E0] bg-white xl:bg-transparent min-w-0 cursor-pointer hover:shadow-md xl:hover:bg-white xl:hover:shadow-[0_2px_12px_rgba(0,0,0,0.03)] transition-all duration-200 rounded-xl xl:rounded-none h-full">
       {/* LEFT — PDF thumbnail */}
       <div className="flex flex-col justify-center shrink-0 w-full xl:w-auto">
-        <PaperThumbnail title={paper.title} thumbnail={paper.thumbnail} />
+        <PaperThumbnail title={paper.title} thumbnail={paper.thumbnail} pdfUrl={paper.pdf_url} />
       </div>
 
       {/* RIGHT — Content */}
